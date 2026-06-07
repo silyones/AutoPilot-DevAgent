@@ -1,0 +1,8 @@
+# This file is intentionally empty.
+# Alembic will populate this directory with versioned migration scripts
+# when you run:
+#
+#   alembic revision --autogenerate -m "initial schema"
+#
+# Each generated file will look like:
+#   20240101_0000_<revision>_initial_schema.py
