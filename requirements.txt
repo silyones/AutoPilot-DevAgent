@@ -11,6 +11,7 @@ langgraph
 crewai
 crewai-tools
 litellm
+json-repair
 PyGithub
 redis
 sqlalchemy

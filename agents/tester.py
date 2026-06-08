@@ -17,32 +17,16 @@ Returns a dict matching ``backend.models.schemas.TestReport``:
 
 from __future__ import annotations
 
-import json
-import re
 
 from crewai import Agent, Crew, Task
 
-from agents.base import get_crewai_llm
+from agents.base import get_crewai_llm, kickoff_with_retry, parse_agent_json
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 _MAX_PATCH_CHARS = 5000
 
-
-def _parse_json_response(raw: str, context: str = "") -> dict:
-    """Strip markdown fences and parse JSON."""
-    clean = re.sub(r"```(?:json)?", "", raw).strip().rstrip(",")
-    try:
-        return json.loads(clean)
-    except json.JSONDecodeError as exc:
-        logger.error(
-            "JSON parse error in %s — raw:\n%s\nerror: %s",
-            context or "response",
-            raw[:500],
-            exc,
-        )
-        raise ValueError(f"Tester returned non-JSON output: {exc}") from exc
 
 
 def run_tester(patches: list, pr_data: dict) -> dict:
@@ -134,9 +118,9 @@ Return ONLY the JSON object — no markdown backticks, no commentary.""",
     )
 
     crew = Crew(agents=[tester], tasks=[task], verbose=True)
-    result = crew.kickoff()
+    result = kickoff_with_retry(crew)
 
-    parsed = _parse_json_response(str(result), context="tester")
+    parsed = parse_agent_json(str(result), context="tester")
 
     # Safe defaults
     parsed.setdefault("passed", 0)

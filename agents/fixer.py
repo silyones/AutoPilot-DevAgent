@@ -18,32 +18,16 @@ the agent can self-correct — this is the self-improving retry loop behaviour.
 
 from __future__ import annotations
 
-import json
-import re
 
 from crewai import Agent, Crew, Task
 
-from agents.base import get_crewai_llm
+from agents.base import get_crewai_llm, kickoff_with_retry, parse_agent_json
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 _MAX_DIFF_CHARS = 6000
 
-
-def _parse_json_response(raw: str, context: str = "") -> dict:
-    """Strip markdown fences and parse JSON."""
-    clean = re.sub(r"```(?:json)?", "", raw).strip().rstrip(",")
-    try:
-        return json.loads(clean)
-    except json.JSONDecodeError as exc:
-        logger.error(
-            "JSON parse error in %s — raw:\n%s\nerror: %s",
-            context or "response",
-            raw[:500],
-            exc,
-        )
-        raise ValueError(f"Fixer returned non-JSON output: {exc}") from exc
 
 
 def run_fixer(
@@ -150,9 +134,9 @@ Return ONLY the JSON object — no markdown backticks, no commentary.""",
     )
 
     crew = Crew(agents=[fixer], tasks=[task], verbose=True)
-    result = crew.kickoff()
+    result = kickoff_with_retry(crew)
 
-    parsed = _parse_json_response(str(result), context="fixer")
+    parsed = parse_agent_json(str(result), context="fixer")
     parsed.setdefault("patches", [])
 
     logger.info("run_fixer: produced %d patch(es)", len(parsed["patches"]))
