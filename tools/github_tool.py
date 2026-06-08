@@ -18,6 +18,7 @@ from github.Repository import Repository
 
 from backend.config import settings
 from backend.utils.logger import get_logger
+from cache.redis_client import cache_get, cache_set
 
 logger = get_logger(__name__)
 
@@ -145,11 +146,12 @@ def fetch_pr_data(pr_url: str) -> dict[str, Any]:
 
     owner, repo_name = repo_full.split("/", 1)
 
-    # Phase 7 cache key (Redis — not yet wired):
-    # cache_key = f"pr_diff:{owner}_{repo_name}_{pr_number}"
-    # cached = redis_client.get(cache_key)
-    # if cached:
-    #     return json.loads(cached)
+    # ── Cache check ───────────────────────────────────────────────────────────
+    cache_key = f"pr_diff:{owner}_{repo_name}_{pr_number}"
+    cached = cache_get(cache_key)
+    if cached:
+        logger.info("Cache hit for PR %d (%s) — skipping GitHub API call", pr_number, repo_full)
+        return cached
 
     client = _get_client()
 
@@ -222,7 +224,7 @@ def fetch_pr_data(pr_url: str) -> dict[str, Any]:
         len(diff),
     )
 
-    # Phase 7: cache result in Redis
-    # redis_client.setex(cache_key, 3600, json.dumps(result))
+    # ── Cache store ───────────────────────────────────────────────────────────
+    cache_set(cache_key, result, ttl_seconds=3600)
 
     return result
