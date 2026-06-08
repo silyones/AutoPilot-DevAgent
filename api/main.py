@@ -10,8 +10,17 @@ ReDoc     : http://localhost:8000/redoc
 
 from __future__ import annotations
 
+# ── LangSmith tracing — must be imported before api.routes (which loads LangGraph) ──
+# backend.tracing sets LANGCHAIN_* env vars at module load time.
+# backend.tracing itself only imports os + backend.config — no langchain — so
+# the env vars are in place before LangGraph/LangChain reads them.
+import backend.tracing  # noqa: F401  (side-effect import — sets env vars)
+
+
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 
 from api.routes import router
 from backend.config import settings
