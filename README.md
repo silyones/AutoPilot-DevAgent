@@ -27,7 +27,7 @@ Progress streams to the browser in real time over WebSocket. Completed reports a
 
 The system uses a **LangGraph StateGraph** to orchestrate CrewAI agents. Each graph node runs a specialist agent, and conditional edges route the pipeline based on shared state.
 
-![Autopilot Dev Flow](./autopilot_dev_flow.png)
+![Autopilot Dev Flow](./architecture_flow.png)
 
 A PR is fetched and reviewed first. If bugs are found, the pipeline enters a fix-and-test loop. Successful tests proceed to documentation, then all results are compiled into a `DevReport`. If the loop cannot resolve issues after the maximum number of retries, the run is escalated for human review.
 
