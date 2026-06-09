@@ -1,4 +1,4 @@
-import { PANEL_CLASS, statusBadgeClass, formatStatus } from '../constants/pipeline';
+import { PANEL_CLASS, statusBadgeClass, formatStatus } from '../lib/pipeline';
 
 export default function ControlPanel({
   prUrl,

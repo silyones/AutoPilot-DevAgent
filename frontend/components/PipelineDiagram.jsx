@@ -1,10 +1,10 @@
 import { Fragment } from 'react';
-import { PIPELINE_NODES } from '../constants/pipeline';
+import { PIPELINE_NODES } from '../lib/pipeline';
 import PipelineNode from './PipelineNode';
 
 export default function PipelineDiagram({ nodeStates, retryActive }) {
   return (
-    <div className="flex flex-col items-center w-full max-w-xs mx-auto">
+    <div className="flex flex-col items-center w-full max-w-md mx-auto px-2">
       {PIPELINE_NODES.map((node, i) => (
         <Fragment key={node.id}>
           <PipelineNode label={node.label} state={nodeStates[node.id]} />

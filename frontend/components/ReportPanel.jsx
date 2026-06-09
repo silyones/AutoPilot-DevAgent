@@ -8,7 +8,7 @@ export default function ReportPanel({ report }) {
   if (!report) return null;
 
   return (
-    <div id="report-print" className="space-y-8 mt-8">
+    <div id="report-print" className="space-y-10 mt-10">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold">DevReport</h2>
         <button

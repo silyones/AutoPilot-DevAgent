@@ -1,4 +1,4 @@
-# ── Stage 1: Build Vite + React frontend ──────────────────────────────────────
+# ── Stage 1: Build Next.js + React frontend ───────────────────────────────────
 FROM node:20-alpine AS frontend-build
 WORKDIR /frontend
 COPY frontend/package.json ./
@@ -20,7 +20,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-COPY --from=frontend-build /frontend/dist ./frontend/dist
+COPY --from=frontend-build /frontend/out ./frontend/out
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh

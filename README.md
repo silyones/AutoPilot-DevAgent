@@ -68,7 +68,7 @@ AutoPilot Dev uses a **LangGraph StateGraph** as the orchestration backbone. The
 | **Redis** | Caching — PR diffs cached 1 hour (6000× speedup on repeat runs), session state 2 hours |
 | **LangSmith** | Observability — traces every LLM call across all agents in the `autopilot_dev` project |
 | **Docker** | Infrastructure — `docker-compose up --build` starts Postgres + Redis + API in one command |
-| **Vite + React** | Professional SPA — `frontend/src/` with Tailwind, built to `frontend/dist/` |
+| **Next.js + React** | Professional SPA — `frontend/app/` with Tailwind, static export to `frontend/out/` |
 
 ---
 
@@ -80,26 +80,24 @@ AutoPilot_Dev/
 ├── .env.example              # Template for .env
 ├── docker-compose.yml        # Postgres + Redis + API (Docker-only stack)
 ├── docker-entrypoint.sh      # Runs alembic migrations, then uvicorn
-├── Dockerfile                # Multi-stage: Node (Vite build) + Python API
+├── Dockerfile                # Multi-stage: Node (Next.js build) + Python API
 ├── pytest.ini                # Pytest markers (graph integration tests)
 ├── requirements.txt
 ├── alembic.ini
 │
 ├── frontend/
-│   ├── package.json          # Vite + React + Tailwind dependencies
-│   ├── vite.config.js        # Dev server + production build config
-│   ├── index.html            # Vite entry HTML
-│   ├── src/
-│   │   ├── App.jsx           # Main application state + WebSocket logic
-│   │   ├── main.jsx          # React entry point
-│   │   ├── index.css         # Dark green + pink theme (Tailwind)
-│   │   ├── components/       # Pipeline, report panels, control panel
-│   │   ├── constants/        # Pipeline nodes, status styles
-│   │   └── utils/            # API URL validation, WebSocket helpers
-│   └── dist/                 # Production build (generated inside Docker)
+│   ├── package.json          # Next.js + React + Tailwind dependencies
+│   ├── next.config.mjs       # Static export config (output → out/)
+│   ├── app/
+│   │   ├── layout.jsx        # Root layout (replaces hand-written HTML)
+│   │   ├── page.jsx          # Main page — WebSocket + pipeline state
+│   │   └── globals.css       # Dark green + pink theme (Tailwind)
+│   ├── components/           # Pipeline, report panels, control panel
+│   ├── lib/                  # Pipeline constants, API helpers
+│   └── out/                  # Production build (generated inside Docker)
 │
 ├── api/                      # FastAPI application
-│   ├── main.py               # Serves frontend/dist + /api/* + /health
+│   ├── main.py               # Serves frontend/out + /api/* + /health
 │   ├── routes.py             # POST /review, WS /ws/{id}, GET /reports
 │   └── websocket_manager.py  # ConnectionManager singleton
 │
@@ -161,7 +159,7 @@ cd AutoPilot-Dev
 cp .env.example .env
 # Edit .env — set GROQ_API_KEY, GITHUB_TOKEN, LANGCHAIN_API_KEY, POSTGRES_PASSWORD
 
-# 3. Start everything (builds Vite frontend + API image, runs migrations)
+# 3. Start everything (builds Next.js frontend + API image, runs migrations)
 docker-compose up --build
 ```
 
@@ -202,19 +200,20 @@ Other URLs:
 - Swagger UI: http://localhost:8000/docs
 - Health check: http://localhost:8000/health
 
-Open the UI at **http://localhost:8000** only. The Vite + React app is built inside the Docker image and served by FastAPI — no separate dev server, no local `npm` required.
+Open the UI at **http://localhost:8000** only. The Next.js + React app is built inside the Docker image and served by FastAPI — no separate dev server, no local `npm` required.
 
 ### Frontend architecture
 
 | Path | Role |
 |------|------|
-| `frontend/src/App.jsx` | Main app — WebSocket, pipeline state, review flow |
-| `frontend/src/components/` | `ControlPanel`, `PipelineDiagram`, `ReportPanel`, etc. |
-| `frontend/src/constants/pipeline.js` | Node definitions, status colours, badge styles |
-| `frontend/src/utils/api.js` | PR URL validation, API base URL, WebSocket URL builder |
-| `frontend/dist/` | Built inside Docker, served by FastAPI at `http://localhost:8000` |
+| `frontend/app/page.jsx` | Main page — WebSocket, pipeline state, review flow |
+| `frontend/app/layout.jsx` | Root HTML shell (no hand-written `.html` in source) |
+| `frontend/components/` | `ControlPanel`, `PipelineDiagram`, `ReportPanel`, etc. |
+| `frontend/lib/pipeline.js` | Node definitions, status colours, badge styles |
+| `frontend/lib/api.js` | PR URL validation, API base URL, WebSocket URL builder |
+| `frontend/out/` | Built inside Docker, served by FastAPI at `http://localhost:8000` |
 
-Tech: **Vite 6 + React 18 + Tailwind CSS 3** — built during `docker-compose up --build`.
+Tech: **Next.js 15 + React 18 + Tailwind CSS 3** — static export built during `docker-compose up --build`.
 
 UI layout (unchanged):
 

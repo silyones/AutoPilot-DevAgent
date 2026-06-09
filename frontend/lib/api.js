@@ -39,4 +39,3 @@ export function validatePrUrl(raw) {
   return { ok: true, url: parsed.href.replace(/\/$/, '') };
 }
 
-export const API = resolveApiBase();

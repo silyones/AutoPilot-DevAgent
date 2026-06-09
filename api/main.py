@@ -26,7 +26,7 @@ from backend.config import settings
 from backend.utils.logger import get_logger
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
-FRONTEND_DIST = FRONTEND_DIR / "dist"
+FRONTEND_DIST = FRONTEND_DIR / "out"
 
 logger = get_logger(__name__)
 
@@ -70,12 +70,12 @@ def _frontend_index() -> Path:
 
 @app.get("/", include_in_schema=False)
 async def serve_frontend() -> FileResponse:
-    """Serve the Vite-built React UI."""
+    """Serve the Next.js-built React UI."""
     return FileResponse(_frontend_index())
 
 
-if FRONTEND_DIST.is_dir() and (FRONTEND_DIST / "assets").is_dir():
-    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+if FRONTEND_DIST.is_dir() and (FRONTEND_DIST / "_next").is_dir():
+    app.mount("/_next", StaticFiles(directory=FRONTEND_DIST / "_next"), name="next_static")
 
 
 @app.on_event("startup")

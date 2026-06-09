@@ -1,4 +1,4 @@
-import { CARD_CLASS } from '../constants/pipeline';
+import { CARD_CLASS } from '../lib/pipeline';
 
 export default function SummaryCards({ report }) {
   const review = report.review || {};
@@ -12,11 +12,11 @@ export default function SummaryCards({ report }) {
   const tests = report.test_results || {};
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
       <div className={CARD_CLASS}>
         <div className="text-muted text-xs uppercase tracking-wide mb-1">Total Issues</div>
         <div className="text-2xl font-bold">{review.total_issues ?? findings.length}</div>
-        <div className="text-xs text-muted mt-2 space-x-2">
+        <div className="text-xs text-muted mt-3 space-x-2">
           <span className="text-danger">C:{severity.critical}</span>
           <span className="text-warn">H:{severity.high}</span>
           <span className="text-pink">M:{severity.medium}</span>
@@ -34,7 +34,7 @@ export default function SummaryCards({ report }) {
           <span className="text-muted text-lg"> / </span>
           <span className="text-danger">{tests.failed ?? 0}</span>
         </div>
-        <div className="text-xs text-muted mt-1">passed / failed</div>
+        <div className="text-xs text-muted mt-3">passed / failed</div>
       </div>
       <div className={CARD_CLASS}>
         <div className="text-muted text-xs uppercase tracking-wide mb-1">Duration</div>

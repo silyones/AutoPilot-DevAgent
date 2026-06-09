@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   PIPELINE_NODES,
@@ -5,14 +7,15 @@ import {
   mapAgentToNode,
   initialNodeStates,
   PANEL_CLASS,
-} from './constants/pipeline';
-import { API, buildWsUrl, validatePrUrl } from './utils/api';
-import ControlPanel from './components/ControlPanel';
-import PipelineDiagram from './components/PipelineDiagram';
-import RecentActivity from './components/RecentActivity';
-import ReportPanel from './components/ReportPanel';
+} from '../lib/pipeline';
+import { resolveApiBase, buildWsUrl, validatePrUrl } from '../lib/api';
+import ErrorBoundary from '../components/ErrorBoundary';
+import ControlPanel from '../components/ControlPanel';
+import PipelineDiagram from '../components/PipelineDiagram';
+import RecentActivity from '../components/RecentActivity';
+import ReportPanel from '../components/ReportPanel';
 
-export default function App() {
+function HomePage() {
   const [prUrl, setPrUrl] = useState('');
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState('IDLE');
@@ -128,7 +131,7 @@ export default function App() {
 
     let sessionId;
     try {
-      const resp = await fetch(`${API}/api/review`, {
+      const resp = await fetch(`${resolveApiBase()}/api/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pr_url: validation.url }),
@@ -228,9 +231,9 @@ export default function App() {
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="flex flex-col lg:flex-row gap-6">
-        <div className="lg:w-[40%] shrink-0">
+    <div className="max-w-[90rem] mx-auto px-6 sm:px-10 py-10">
+      <div className="flex flex-col lg:flex-row gap-8">
+        <div className="lg:w-[36%] xl:w-[34%] shrink-0">
           <ControlPanel
             prUrl={prUrl}
             setPrUrl={setPrUrl}
@@ -241,7 +244,7 @@ export default function App() {
             duration={duration}
           />
         </div>
-        <div className="lg:w-[60%]">
+        <div className="lg:flex-1 min-w-0">
           <div className={`${PANEL_CLASS} h-full`}>
             <h2 className="text-xs uppercase text-pink tracking-wide mb-4">Live Pipeline</h2>
             <PipelineDiagram nodeStates={nodeStates} retryActive={retryActive} />
@@ -251,5 +254,13 @@ export default function App() {
       </div>
       {report && <ReportPanel report={report} />}
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <ErrorBoundary>
+      <HomePage />
+    </ErrorBoundary>
   );
 }

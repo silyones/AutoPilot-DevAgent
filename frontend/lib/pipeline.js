@@ -17,7 +17,7 @@ PIPELINE_NODES.forEach((n) => {
 export const NODE_ORDER = PIPELINE_NODES.map((n) => n.id);
 
 export const STATUS_STYLES = {
-  WAITING: 'border-dashed border-muted/30 bg-bg/60 text-muted rounded-3xl',
+  WAITING: 'border-muted/40 bg-surface2/40 text-muted rounded-3xl',
   RUNNING: 'border-pink bg-pink/20 text-pink node-running rounded-3xl',
   DONE: 'border-success bg-success/15 text-success rounded-3xl',
   FAILED: 'border-danger bg-danger/20 text-danger rounded-3xl',
@@ -30,8 +30,10 @@ export const SEVERITY_COLORS = {
   low: 'text-muted bg-forest/50',
 };
 
-export const CARD_CLASS = 'bg-surface2/80 border border-pink/25 rounded-3xl p-4';
-export const PANEL_CLASS = 'bg-surface/90 border border-pink/30 rounded-[2rem] p-6 shadow-lg backdrop-blur-sm';
+export const CARD_CLASS =
+  'bg-surface2/80 border border-pink/25 rounded-3xl px-6 py-5 min-h-[7.5rem]';
+export const PANEL_CLASS =
+  'bg-surface/90 border border-pink/30 rounded-3xl px-8 py-7 shadow-lg backdrop-blur-sm';
 
 export function mapAgentToNode(agent) {
   if (!agent) return null;

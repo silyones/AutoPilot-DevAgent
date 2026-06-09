@@ -48,11 +48,11 @@ pre {
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
 }
 
-#root input[type='url'] {
+input[type='url'] {
   color: #000;
 }
 
-#root input[type='url']::placeholder {
+input[type='url']::placeholder {
   color: #6b7280;
   opacity: 1;
 }
