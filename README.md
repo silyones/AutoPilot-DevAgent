@@ -29,25 +29,25 @@ AutoPilot Dev uses a **LangGraph StateGraph** as the orchestration backbone. The
 └──────┬──────┘
        │  has_bugs?
        ├─── No ──────────────────────────────────────────────┐
-       ▼                                                      │
+       ▼                                                     │
 ┌─────────────┐                                              │
 │     fix     │  — Fixer Agent → patches, self-aware retries │
 └──────┬──────┘                                              │
-       ▼                                                      │
+       ▼                                                     |
 ┌─────────────┐                                              │
 │    test     │  — Tester Agent → pytest simulation          │
 └──────┬──────┘                                              │
-       │  tests pass?                                         │
+       │  tests pass?                                        │
        ├─── No (retry_count < max) ──────→ back to fix       │
-       ├─── No (max retries hit) ────────→ NEEDS_HUMAN_REVIEW │
-       ▼                                                      │
+       ├─── No (max retries hit) ────────→ NEEDS_HUMAN_REVIEW│
+       ▼                                                     │
 ┌─────────────┐                                              │
-│   document  │  — Documenter Agent → PR summary              │
+│   document  │  — Documenter Agent → PR summary             │
 └──────┬──────┘                                              │
-       ▼                                                      ▼
-┌──────────────────────────────────────────────────────────────┐
-│                 compile_report  →  DevReport                  │
-└──────────────────────────────────────────────────────────────┘
+       ▼                                                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 compile_report  →  DevReport                │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 **The fix → test retry loop is the key innovation.** On each retry, the Fixer agent receives its own previous attempt's output and the test failure report — enabling self-correction without human intervention.
@@ -68,7 +68,7 @@ AutoPilot Dev uses a **LangGraph StateGraph** as the orchestration backbone. The
 | **Redis** | Caching — PR diffs cached 1 hour (6000× speedup on repeat runs), session state 2 hours |
 | **LangSmith** | Observability — traces every LLM call across all agents in the `autopilot_dev` project |
 | **Docker** | Infrastructure — `docker-compose up --build` starts Postgres + Redis + API in one command |
-| **React (ES modules)** | Browser UI — `frontend/app.js` + Tailwind CDN, no npm build step |
+| **Vite + React** | Professional SPA — `frontend/src/` with Tailwind, built to `frontend/dist/` |
 
 ---
 
@@ -80,17 +80,26 @@ AutoPilot_Dev/
 ├── .env.example              # Template for .env
 ├── docker-compose.yml        # Postgres + Redis + API (Docker-only stack)
 ├── docker-entrypoint.sh      # Runs alembic migrations, then uvicorn
-├── Dockerfile                # python:3.11-slim image
+├── Dockerfile                # Multi-stage: Node (Vite build) + Python API
 ├── pytest.ini                # Pytest markers (graph integration tests)
 ├── requirements.txt
 ├── alembic.ini
 │
 ├── frontend/
-│   ├── index.html            # UI shell (Tailwind CDN, import map)
-│   └── app.js                # React UI (ES modules + htm, no build step)
+│   ├── package.json          # Vite + React + Tailwind dependencies
+│   ├── vite.config.js        # Dev server + production build config
+│   ├── index.html            # Vite entry HTML
+│   ├── src/
+│   │   ├── App.jsx           # Main application state + WebSocket logic
+│   │   ├── main.jsx          # React entry point
+│   │   ├── index.css         # Dark green + pink theme (Tailwind)
+│   │   ├── components/       # Pipeline, report panels, control panel
+│   │   ├── constants/        # Pipeline nodes, status styles
+│   │   └── utils/            # API URL validation, WebSocket helpers
+│   └── dist/                 # Production build (generated inside Docker)
 │
 ├── api/                      # FastAPI application
-│   ├── main.py               # Serves /, /app.js, /api/*, /health
+│   ├── main.py               # Serves frontend/dist + /api/* + /health
 │   ├── routes.py             # POST /review, WS /ws/{id}, GET /reports
 │   └── websocket_manager.py  # ConnectionManager singleton
 │
@@ -139,8 +148,7 @@ AutoPilot_Dev/
 ## Setup & Run
 
 ### Prerequisites
-- **Docker Desktop** only — Postgres, Redis, and the API all run in containers
-- No local `uvicorn`, venv, or system Postgres required
+- **Docker Desktop** only — Postgres, Redis, API, and the React UI all run in containers
 
 ### Quick Start
 
@@ -153,7 +161,7 @@ cd AutoPilot-Dev
 cp .env.example .env
 # Edit .env — set GROQ_API_KEY, GITHUB_TOKEN, LANGCHAIN_API_KEY, POSTGRES_PASSWORD
 
-# 3. Start the full stack (builds API image, runs migrations, starts all services)
+# 3. Start everything (builds Vite frontend + API image, runs migrations)
 docker-compose up --build
 ```
 
@@ -181,8 +189,8 @@ docker-compose down
 
 ### Using the UI
 
-1. Ensure `docker-compose up` is running and `autopilot-api` is healthy
-2. Open **http://localhost:8000**
+1. Run `docker-compose up --build` and wait for `autopilot-api` to start
+2. Open **http://localhost:8000** (this is the only URL for the UI)
 3. Paste a GitHub PR URL (e.g. `https://github.com/owner/repo/pull/1`)
 4. Click **Analyse**
 5. Watch the live pipeline diagram and status badge update via WebSocket
@@ -193,22 +201,26 @@ Other URLs:
 
 - Swagger UI: http://localhost:8000/docs
 - Health check: http://localhost:8000/health
-- App module: http://localhost:8000/app.js
 
-The frontend resolves the API base URL from `window.location.origin` (same host as the page). No hardcoded `localhost` in the app code.
+Open the UI at **http://localhost:8000** only. The Vite + React app is built inside the Docker image and served by FastAPI — no separate dev server, no local `npm` required.
 
 ### Frontend architecture
 
-| File | Role |
+| Path | Role |
 |------|------|
-| `frontend/index.html` | Shell — Tailwind CDN, CSS theme, React import map |
-| `frontend/app.js` | React UI via ES modules + [htm](https://github.com/developit/htm) (no Babel, no `unsafe-eval`, no npm build) |
+| `frontend/src/App.jsx` | Main app — WebSocket, pipeline state, review flow |
+| `frontend/src/components/` | `ControlPanel`, `PipelineDiagram`, `ReportPanel`, etc. |
+| `frontend/src/constants/pipeline.js` | Node definitions, status colours, badge styles |
+| `frontend/src/utils/api.js` | PR URL validation, API base URL, WebSocket URL builder |
+| `frontend/dist/` | Built inside Docker, served by FastAPI at `http://localhost:8000` |
 
-UI layout:
+Tech: **Vite 6 + React 18 + Tailwind CSS 3** — built during `docker-compose up --build`.
+
+UI layout (unchanged):
 
 - **Left column** — PR URL input, Analyse button, status badge, duration
-- **Right column** — live pipeline diagram (node states: waiting / running / done / failed) + last 5 activity log lines
-- **Report section** — readable DevReport sections (not raw JSON), with PDF export via `window.print()`
+- **Right column** — live pipeline diagram (waiting / running / done / failed) + last 5 activity lines
+- **Report section** — summary cards, findings table, patches, documentation summary, agent timeline, PDF export
 
 ### pgAdmin / external DB tools
 

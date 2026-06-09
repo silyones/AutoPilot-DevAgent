@@ -1,105 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AutoPilot Dev — Autonomous PR Review</title>
-  <meta name="description" content="AutoPilot Dev: AI-powered autonomous GitHub PR review and bug-fix system." />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            bg: 'var(--color-bg)',
-            surface: 'var(--color-surface)',
-            surface2: 'var(--color-surface2)',
-            border: 'var(--color-pink)',
-            accent: 'var(--color-pink)',
-            accenthover: 'var(--color-pink-hover)',
-            success: 'var(--color-success)',
-            warn: 'var(--color-warn)',
-            danger: 'var(--color-danger)',
-            muted: 'var(--color-muted)',
-            forest: 'var(--color-forest)',
-            pink: 'var(--color-pink)',
-          },
-        },
-      },
-    };
-  </script>
-  <style>
-    :root {
-      --color-bg: #0A1612;
-      --color-surface: #132A22;
-      --color-surface2: #1A3529;
-      --color-pink: #F8A1B1;
-      --color-pink-hover: #FFD4DC;
-      --color-success: #6EE7A8;
-      --color-warn: #FFD4A8;
-      --color-danger: #E85D75;
-      --color-muted: #8FB9A5;
-      --color-forest: #0D2818;
-      --color-text: #FFF5F7;
-    }
-
-    body {
-      background: var(--color-bg);
-      color: var(--color-text);
-      background-image:
-        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(26, 53, 41, 0.5) 0%, transparent 70%),
-        radial-gradient(ellipse 50% 40% at 100% 100%, rgba(13, 40, 24, 0.4) 0%, transparent 60%);
-    }
-
-    @keyframes pulse-pink {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(248, 161, 177, 0.55); }
-      50% { box-shadow: 0 0 18px 5px rgba(248, 161, 177, 0.4); }
-    }
-
-    .node-running { animation: pulse-pink 1.5s ease-in-out infinite; }
-
-    .arrow-down::after {
-      content: '↓';
-      display: block;
-      text-align: center;
-      color: var(--color-pink);
-      font-size: 1.25rem;
-      line-height: 1;
-      margin: 4px 0;
-    }
-
-    code, pre { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
-
-    #root input[type="url"] {
-      color: #000;
-    }
-    #root input[type="url"]::placeholder {
-      color: #6b7280;
-      opacity: 1;
-    }
-
-    @media print {
-      body { background: #fff !important; color: #111 !important; background-image: none !important; }
-      .no-print { display: none !important; }
-      #report-print { display: block !important; color: #111 !important; background: #fff !important; }
-      #report-print * { color: #111 !important; }
-      #report-print .bg-surface, #report-print .bg-bg { background: #f9f9f9 !important; border: 1px solid #ddd !important; }
-      .node-running { animation: none !important; box-shadow: none !important; }
-    }
-  </style>
-</head>
-<body class="min-h-screen">
-  <div id="root"></div>
-
-  <script type="importmap">
-  {
-    "imports": {
-      "react": "https://esm.sh/react@18.3.1",
-      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-      "htm": "https://esm.sh/htm@3.1.1"
-    }
-  }
-  </script>
-  <script type="module" src="/app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoPilot Dev — Autonomous PR Review</title>
+    <meta name="description" content="AutoPilot Dev: AI-powered autonomous GitHub PR review and bug-fix system." />
+  </head>
+  <body class="min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>

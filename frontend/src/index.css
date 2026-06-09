@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #0a1612;
+  --color-surface: #132a22;
+  --color-surface2: #1a3529;
+  --color-pink: #f8a1b1;
+  --color-pink-hover: #ffd4dc;
+  --color-success: #6ee7a8;
+  --color-warn: #ffd4a8;
+  --color-danger: #e85d75;
+  --color-muted: #8fb9a5;
+  --color-forest: #0d2818;
+  --color-text: #fff5f7;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(26, 53, 41, 0.5) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(13, 40, 24, 0.4) 0%, transparent 60%);
+}
+
+@keyframes pulse-pink {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(248, 161, 177, 0.55); }
+  50% { box-shadow: 0 0 18px 5px rgba(248, 161, 177, 0.4); }
+}
+
+.node-running {
+  animation: pulse-pink 1.5s ease-in-out infinite;
+}
+
+.arrow-down::after {
+  content: '↓';
+  display: block;
+  text-align: center;
+  color: var(--color-pink);
+  font-size: 1.25rem;
+  line-height: 1;
+  margin: 4px 0;
+}
+
+code,
+pre {
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+}
+
+#root input[type='url'] {
+  color: #000;
+}
+
+#root input[type='url']::placeholder {
+  color: #6b7280;
+  opacity: 1;
+}
+
+@media print {
+  body {
+    background: #fff !important;
+    color: #111 !important;
+    background-image: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  #report-print {
+    display: block !important;
+    color: #111 !important;
+    background: #fff !important;
+  }
+  #report-print * {
+    color: #111 !important;
+  }
+  #report-print .bg-surface,
+  #report-print .bg-bg {
+    background: #f9f9f9 !important;
+    border: 1px solid #ddd !important;
+  }
+  .node-running {
+    animation: none !important;
+    box-shadow: none !important;
+  }
+}
