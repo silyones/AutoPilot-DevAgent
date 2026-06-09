@@ -23,42 +23,13 @@ Progress streams to the browser in real time over WebSocket. Completed reports a
 
 ---
 
-## Architecture
+## Architecture Flow
 
 The system uses a **LangGraph StateGraph** to orchestrate CrewAI agents. Each graph node runs a specialist agent, and conditional edges route the pipeline based on shared state.
 
-```
-┌─────────────┐
-│  fetch_pr   │  GitHub API → PR diff, metadata, file tree
-└──────┬──────┘
-       ▼
-┌─────────────┐
-│   review    │  Reviewer Agent → findings, severity, classification
-└──────┬──────┘
-       │  has_bugs?
-       ├─── No ──────────────────────────────────────────────┐
-       ▼                                                     │
-┌─────────────┐                                              │
-│     fix     │  Fixer Agent → patches                       │
-└──────┬──────┘                                              │
-       ▼                                                     │
-┌─────────────┐                                              │
-│    test     │  Tester Agent → pytest simulation            │
-└──────┬──────┘                                              │
-       │  tests pass?                                        │
-       ├─── No (retry_count < max) ──────→ back to fix       │
-       ├─── No (max retries hit) ────────→ NEEDS_HUMAN_REVIEW│
-       ▼                                                     │
-┌─────────────┐                                              │
-│   document  │  Documenter Agent → PR summary                 │
-└──────┬──────┘                                              │
-       ▼                                                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 compile_report  →  DevReport                  │
-└─────────────────────────────────────────────────────────────┘
-```
+![Autopilot Dev Flow](./autopilot_dev_flow.png)
 
-When tests fail, the pipeline retries the fix-and-test cycle. On each retry, the Fixer agent receives its previous output and the test failure report to refine patches automatically.
+A PR is fetched and reviewed first. If bugs are found, the pipeline enters a fix-and-test loop. Successful tests proceed to documentation, then all results are compiled into a `DevReport`. If the loop cannot resolve issues after the maximum number of retries, the run is escalated for human review.
 
 ---
 
