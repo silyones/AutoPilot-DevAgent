@@ -4,447 +4,654 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AutoPilot Dev — Autonomous PR Review</title>
-  <meta name="description" content="AutoPilot Dev: AI-powered autonomous GitHub PR review and bug-fix system powered by LangGraph, CrewAI, and Groq." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg: '#0A1612',
+            surface: '#132A22',
+            surface2: '#1A3529',
+            border: '#F8A1B1',
+            accent: '#F8A1B1',
+            accenthover: '#FFD4DC',
+            success: '#6EE7A8',
+            warn: '#FFD4A8',
+            danger: '#E85D75',
+            muted: '#8FB9A5',
+            forest: '#0D2818',
+            pink: '#F8A1B1',
+          },
+        },
+      },
+    };
+  </script>
   <style>
-    /* ── Reset & Base ──────────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:         #0d1117;
-      --surface:    #161b22;
-      --surface2:   #1f2937;
-      --border:     #30363d;
-      --accent:     #58a6ff;
-      --accent2:    #3fb950;
-      --warn:       #d29922;
-      --error:      #f85149;
-      --text:       #e6edf3;
-      --muted:      #8b949e;
-      --radius:     10px;
-      --mono:       'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-    }
-
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px 16px 80px;
+      background: #0A1612;
+      background-image:
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(26, 53, 41, 0.5) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 100% 100%, rgba(13, 40, 24, 0.4) 0%, transparent 60%);
     }
-
-    /* ── Header ────────────────────────────────────────────────────── */
-    header {
+    @keyframes pulse-pink {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(248, 161, 177, 0.55); }
+      50% { box-shadow: 0 0 18px 5px rgba(248, 161, 177, 0.4); }
+    }
+    .node-running { animation: pulse-pink 1.5s ease-in-out infinite; }
+    .blob-card { border-radius: 2rem; }
+    .arrow-down::after {
+      content: '↓';
+      display: block;
       text-align: center;
-      margin-bottom: 40px;
+      color: #F8A1B1;
+      font-size: 1.25rem;
+      line-height: 1;
+      margin: 4px 0;
     }
-    .logo {
-      font-size: 2.4rem;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #58a6ff 0%, #3fb950 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .tagline {
-      color: var(--muted);
-      margin-top: 6px;
-      font-size: 0.95rem;
-    }
+    code, pre { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
 
-    /* ── Card ──────────────────────────────────────────────────────── */
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 28px 32px;
-      width: 100%;
-      max-width: 780px;
-      margin-bottom: 20px;
+    @media print {
+      body { background: #fff !important; color: #111 !important; }
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      #report-print {
+        display: block !important;
+        color: #111 !important;
+        background: #fff !important;
+      }
+      #report-print * { color: #111 !important; }
+      #report-print .bg-surface, #report-print .bg-bg, #report-print .bg-gray-900 {
+        background: #f9f9f9 !important;
+        border: 1px solid #ddd !important;
+      }
+      #report-print .text-white, #report-print .text-muted { color: #333 !important; }
+      .node-running { animation: none !important; box-shadow: none !important; }
     }
-    .card-title {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--muted);
-      margin-bottom: 16px;
-    }
-
-    /* ── Input Row ─────────────────────────────────────────────────── */
-    .input-row {
-      display: flex;
-      gap: 10px;
-    }
-    #prUrl {
-      flex: 1;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 0.95rem;
-      padding: 10px 14px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    #prUrl:focus { border-color: var(--accent); }
-    #prUrl::placeholder { color: var(--muted); }
-
-    #runBtn {
-      background: var(--accent);
-      border: none;
-      border-radius: 8px;
-      color: #0d1117;
-      cursor: pointer;
-      font-size: 0.9rem;
-      font-weight: 700;
-      padding: 10px 22px;
-      transition: opacity 0.2s, transform 0.1s;
-      white-space: nowrap;
-    }
-    #runBtn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
-    #runBtn:active:not(:disabled) { transform: translateY(0); }
-    #runBtn:disabled { opacity: 0.45; cursor: not-allowed; }
-
-    /* ── Status Badge ──────────────────────────────────────────────── */
-    .status-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-top: 18px;
-    }
-    .status-label { color: var(--muted); font-size: 0.85rem; }
-    #statusBadge {
-      display: inline-block;
-      padding: 3px 12px;
-      border-radius: 20px;
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      background: var(--surface2);
-      transition: all 0.3s;
-    }
-    #statusBadge.in-progress  { color: var(--warn);   border-color: var(--warn);   background: rgba(210,153,34,0.12);  }
-    #statusBadge.passed       { color: var(--accent2); border-color: var(--accent2); background: rgba(63,185,80,0.12); }
-    #statusBadge.fixed        { color: var(--accent);  border-color: var(--accent);  background: rgba(88,166,255,0.12); }
-    #statusBadge.needs-review { color: var(--error);   border-color: var(--error);   background: rgba(248,81,73,0.12);  }
-
-    #duration {
-      color: var(--muted);
-      font-size: 0.82rem;
-      margin-left: auto;
-    }
-
-    /* ── Activity Feed ─────────────────────────────────────────────── */
-    #feed {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .feed-item {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 16px;
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      animation: slideIn 0.25s ease;
-    }
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    .feed-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 1px; }
-    .feed-body { flex: 1; }
-    .feed-agent { font-weight: 600; font-size: 0.9rem; }
-    .feed-msg   { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
-    .feed-ts    { color: var(--border); font-size: 0.75rem; margin-top: 4px; font-family: var(--mono); }
-
-    /* ── Spinner ───────────────────────────────────────────────────── */
-    .spinner {
-      display: inline-block;
-      width: 14px; height: 14px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      vertical-align: middle;
-      margin-right: 6px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── JSON Report ───────────────────────────────────────────────── */
-    #reportBox {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: #a5d6ff;
-      font-family: var(--mono);
-      font-size: 0.8rem;
-      line-height: 1.6;
-      max-height: 460px;
-      overflow-y: auto;
-      padding: 18px;
-      white-space: pre;
-      tab-size: 2;
-    }
-    #reportBox::-webkit-scrollbar { width: 6px; }
-    #reportBox::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-    /* ── Error Toast ───────────────────────────────────────────────── */
-    #toast {
-      background: rgba(248,81,73,0.15);
-      border: 1px solid var(--error);
-      border-radius: 8px;
-      color: var(--error);
-      display: none;
-      font-size: 0.88rem;
-      margin-top: 12px;
-      padding: 10px 14px;
-    }
-
-    /* ── Footer ────────────────────────────────────────────────────── */
-    footer {
-      color: var(--muted);
-      font-size: 0.78rem;
-      margin-top: 32px;
-      text-align: center;
-    }
+    .print-only { display: none; }
   </style>
 </head>
-<body>
+<body class="text-[#FFF5F7] min-h-screen">
+  <div id="root"></div>
 
-<header>
-  <div class="logo">⚡ AutoPilot Dev</div>
-  <p class="tagline">Autonomous GitHub PR Review &amp; Bug Fix · LangGraph · CrewAI · Groq</p>
-</header>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-<!-- ── Input Card ────────────────────────────────────────────────────── -->
-<div class="card">
-  <div class="card-title">GitHub Pull Request</div>
-  <div class="input-row">
-    <input id="prUrl" type="url"
-           placeholder="https://github.com/owner/repo/pull/123"
-           autocomplete="off" spellcheck="false" />
-    <button id="runBtn" onclick="startReview()">▶ Run AutoPilot</button>
-  </div>
-  <div id="toast"></div>
-  <div class="status-row">
-    <span class="status-label">Status</span>
-    <span id="statusBadge">IDLE</span>
-    <span id="duration"></span>
-  </div>
-</div>
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useCallback } = React;
 
-<!-- ── Live Feed Card ────────────────────────────────────────────────── -->
-<div class="card" id="feedCard" style="display:none">
-  <div class="card-title">
-    <span id="feedSpinner" class="spinner"></span>Live Agent Activity
-  </div>
-  <ul id="feed"></ul>
-</div>
+    const API = 'http://localhost:8000';
 
-<!-- ── Report Card ───────────────────────────────────────────────────── -->
-<div class="card" id="reportCard" style="display:none">
-  <div class="card-title">DevReport — Full Output</div>
-  <pre id="reportBox"></pre>
-</div>
+    const PIPELINE_NODES = [
+      { id: 'fetcher', label: 'GitHub Fetcher', agents: ['GitHub Fetcher'] },
+      { id: 'reviewer', label: 'Reviewer Agent', agents: ['Reviewer Agent'] },
+      { id: 'fixer', label: 'Fixer Agent', agents: ['Fixer Agent'] },
+      { id: 'tester', label: 'Tester Agent', agents: ['Tester Agent'] },
+      { id: 'documenter', label: 'Documenter Agent', agents: ['Documenter Agent'] },
+      { id: 'final', label: 'Final Report', agents: [] },
+    ];
 
-<footer>AutoPilot Dev · Built with FastAPI, LangGraph, CrewAI, Groq</footer>
+    const AGENT_TO_NODE = {};
+    PIPELINE_NODES.forEach((n) => {
+      n.agents.forEach((a) => { AGENT_TO_NODE[a] = n.id; });
+    });
 
-<script>
-  const API = window.location.origin;
-  let ws = null;
-  let startTs = null;
-  let timerInterval = null;
+    const NODE_ORDER = PIPELINE_NODES.map((n) => n.id);
 
-  // ── Agent icon map ──────────────────────────────────────────────────
-  const ICONS = {
-    'GitHub Fetcher':  '📡',
-    'Reviewer Agent':  '🔍',
-    'Fixer Agent':     '🔧',
-    'Tester Agent':    '🧪',
-    'Documenter Agent':'📝',
-    'default':         '🤖',
-  };
+    const STATUS_STYLES = {
+      WAITING: 'border-dashed border-muted/30 bg-bg/60 text-muted rounded-3xl',
+      RUNNING: 'border-pink bg-pink/20 text-pink node-running rounded-3xl',
+      DONE: 'border-success bg-success/15 text-success rounded-3xl',
+      FAILED: 'border-danger bg-danger/20 text-danger rounded-3xl',
+    };
 
-  function agentIcon(agent) {
-    for (const [k, v] of Object.entries(ICONS)) {
-      if (agent && agent.includes(k.split(' ')[0])) return v;
-    }
-    return ICONS.default;
-  }
+    const SEVERITY_COLORS = {
+      critical: 'text-[#FFD4DC] bg-danger/40',
+      high: 'text-warn bg-warn/25',
+      medium: 'text-pink bg-pink/20',
+      low: 'text-muted bg-forest/50',
+    };
 
-  // ── Status badge ────────────────────────────────────────────────────
-  function setStatus(text, cls) {
-    const badge = document.getElementById('statusBadge');
-    badge.textContent = text;
-    badge.className = cls || '';
-  }
-
-  // ── Error toast ─────────────────────────────────────────────────────
-  function showError(msg) {
-    const t = document.getElementById('toast');
-    t.textContent = '⚠ ' + msg;
-    t.style.display = 'block';
-    setTimeout(() => t.style.display = 'none', 8000);
-  }
-
-  // ── Duration ticker ─────────────────────────────────────────────────
-  function startTimer() {
-    startTs = Date.now();
-    timerInterval = setInterval(() => {
-      const s = ((Date.now() - startTs) / 1000).toFixed(1);
-      document.getElementById('duration').textContent = s + 's';
-    }, 100);
-  }
-  function stopTimer() {
-    clearInterval(timerInterval);
-  }
-
-  // ── Feed item ───────────────────────────────────────────────────────
-  function addFeedItem(icon, agent, message, timestamp) {
-    const li = document.createElement('li');
-    li.className = 'feed-item';
-    const ts = timestamp ? new Date(timestamp).toLocaleTimeString() : '';
-    li.innerHTML =
-      '<span class="feed-icon">' + icon + '</span>' +
-      '<div class="feed-body">' +
-        '<div class="feed-agent">' + (agent || 'System') + '</div>' +
-        '<div class="feed-msg">' + message + '</div>' +
-        (ts ? '<div class="feed-ts">' + ts + '</div>' : '') +
-      '</div>';
-    document.getElementById('feed').appendChild(li);
-    li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-
-  // ── Reset UI ────────────────────────────────────────────────────────
-  function reset() {
-    document.getElementById('feed').innerHTML = '';
-    document.getElementById('feedCard').style.display = 'none';
-    document.getElementById('reportCard').style.display = 'none';
-    document.getElementById('reportBox').textContent = '';
-    document.getElementById('feedSpinner').style.display = 'inline-block';
-    document.getElementById('duration').textContent = '';
-    document.getElementById('toast').style.display = 'none';
-    if (ws) { ws.close(); ws = null; }
-    stopTimer();
-  }
-
-  // ── Map status string → badge CSS class ─────────────────────────────
-  function statusClass(s) {
-    const m = { PASSED: 'passed', FIXED: 'fixed', NEEDS_HUMAN_REVIEW: 'needs-review', IN_PROGRESS: 'in-progress' };
-    return m[s] || '';
-  }
-
-  // ── Main entry point ────────────────────────────────────────────────
-  async function startReview() {
-    const url = document.getElementById('prUrl').value.trim();
-    if (!url) { showError('Please enter a GitHub PR URL.'); return; }
-    if (!url.includes('github.com') || !url.includes('/pull/')) {
-      showError('URL must be a GitHub PR link: https://github.com/owner/repo/pull/123');
-      return;
+    function mapAgentToNode(agent) {
+      if (!agent) return null;
+      if (AGENT_TO_NODE[agent]) return AGENT_TO_NODE[agent];
+      for (const [name, id] of Object.entries(AGENT_TO_NODE)) {
+        if (agent.includes(name.split(' ')[0])) return id;
+      }
+      return null;
     }
 
-    reset();
-    document.getElementById('runBtn').disabled = true;
-    setStatus('IN PROGRESS', 'in-progress');
-    document.getElementById('feedCard').style.display = 'block';
-    startTimer();
+    function initialNodeStates() {
+      const s = {};
+      PIPELINE_NODES.forEach((n) => { s[n.id] = 'WAITING'; });
+      return s;
+    }
 
-    // ── 1. POST /api/review ────────────────────────────────────────────
-    let sessionId;
-    try {
-      const resp = await fetch(API + '/api/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pr_url: url }),
+    function statusBadgeClass(status) {
+      const m = {
+        'IN PROGRESS': 'bg-pink/25 text-pink border-pink/60',
+        PASSED: 'bg-success/20 text-success border-success/50',
+        FIXED: 'bg-pink/30 text-[#FFF5F7] border-pink/70',
+        NEEDS_HUMAN_REVIEW: 'bg-danger/25 text-[#FFD4DC] border-danger/50',
+        ERROR: 'bg-danger/25 text-[#FFD4DC] border-danger/50',
+      };
+      return m[status] || 'bg-forest/60 text-muted border-pink/30';
+    }
+
+    function formatStatus(s) {
+      if (s === 'NEEDS_HUMAN_REVIEW') return 'NEEDS HUMAN REVIEW';
+      return s || 'IDLE';
+    }
+
+    // ── Pipeline Node ─────────────────────────────────────────────────────
+    function PipelineNode({ label, state }) {
+      const cls = STATUS_STYLES[state] || STATUS_STYLES.WAITING;
+      return (
+        <div className={`border-2 px-5 py-3.5 text-center text-sm font-semibold transition-all duration-300 ${cls}`}>
+          {state === 'DONE' && <span className="mr-1">✓</span>}
+          {state === 'FAILED' && <span className="mr-1">✗</span>}
+          {label}
+        </div>
+      );
+    }
+
+    // ── Pipeline Diagram ──────────────────────────────────────────────────
+    function PipelineDiagram({ nodeStates, retryActive }) {
+      return (
+        <div className="flex flex-col items-center w-full max-w-xs mx-auto">
+          {PIPELINE_NODES.map((node, i) => (
+            <React.Fragment key={node.id}>
+              <PipelineNode label={node.label} state={nodeStates[node.id]} />
+              {node.id === 'fixer' && i < PIPELINE_NODES.length - 1 && (
+                <div className="relative w-full flex justify-center my-1">
+                  <div className="arrow-down" />
+                  {retryActive && (
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-warn border border-warn/50 rounded-full px-3 py-1 whitespace-nowrap bg-warn/10">
+                      ↺ retry loop
+                    </div>
+                  )}
+                </div>
+              )}
+              {node.id === 'tester' && (
+                <div className="relative w-full">
+                  <div className="arrow-down" />
+                  {retryActive && (
+                    <svg className="absolute -right-16 top-0 h-16 w-16 text-warn/60" viewBox="0 0 64 64" fill="none">
+                      <path d="M8 32 C8 8, 56 8, 56 32" stroke="currentColor" strokeWidth="2" strokeDasharray="4 3" markerEnd="url(#arrow)" />
+                      <defs><marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor" /></marker></defs>
+                    </svg>
+                  )}
+                </div>
+              )}
+              {node.id !== 'fixer' && node.id !== 'tester' && i < PIPELINE_NODES.length - 1 && (
+                <div className="arrow-down" />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      );
+    }
+
+    // ── Report Sections ───────────────────────────────────────────────────
+    function SummaryCards({ report }) {
+      const review = report.review || {};
+      const findings = review.findings || [];
+      const severity = { critical: 0, high: 0, medium: 0, low: 0 };
+      findings.forEach((f) => {
+        const s = (f.severity || 'low').toLowerCase();
+        if (severity[s] !== undefined) severity[s]++;
       });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      if (!data.success) throw new Error(data.error || 'Unknown error from server');
-      sessionId = data.session_id;
-    } catch (e) {
-      showError('Failed to start review: ' + e.message);
-      setStatus('ERROR', '');
-      stopTimer();
-      document.getElementById('runBtn').disabled = false;
-      return;
+      const patches = report.patches || [];
+      const tests = report.test_results || {};
+
+      return (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-surface2/80 border border-pink/25 rounded-3xl p-4">
+            <div className="text-muted text-xs uppercase tracking-wide mb-1">Total Issues</div>
+            <div className="text-2xl font-bold">{review.total_issues ?? findings.length}</div>
+            <div className="text-xs text-muted mt-2 space-x-2">
+              <span className="text-danger">C:{severity.critical}</span>
+              <span className="text-warn">H:{severity.high}</span>
+              <span className="text-pink">M:{severity.medium}</span>
+              <span className="text-muted">L:{severity.low}</span>
+            </div>
+          </div>
+          <div className="bg-surface2/80 border border-pink/25 rounded-3xl p-4">
+            <div className="text-muted text-xs uppercase tracking-wide mb-1">Patches Generated</div>
+            <div className="text-2xl font-bold text-pink">{patches.length}</div>
+          </div>
+          <div className="bg-surface2/80 border border-pink/25 rounded-3xl p-4">
+            <div className="text-muted text-xs uppercase tracking-wide mb-1">Tests</div>
+            <div className="text-2xl font-bold">
+              <span className="text-success">{tests.passed ?? 0}</span>
+              <span className="text-muted text-lg"> / </span>
+              <span className="text-danger">{tests.failed ?? 0}</span>
+            </div>
+            <div className="text-xs text-muted mt-1">passed / failed</div>
+          </div>
+          <div className="bg-surface2/80 border border-pink/25 rounded-3xl p-4">
+            <div className="text-muted text-xs uppercase tracking-wide mb-1">Duration</div>
+            <div className="text-2xl font-bold text-pink">{(report.total_duration_seconds || 0).toFixed(2)}s</div>
+          </div>
+        </div>
+      );
     }
 
-    addFeedItem('🚀', 'AutoPilot', 'Pipeline started — session ' + sessionId.slice(0, 8) + '…');
-
-    // ── 2. Connect WebSocket ────────────────────────────────────────────
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = wsProtocol + '//' + window.location.host + '/api/ws/' + sessionId;
-    ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      addFeedItem('🔗', 'WebSocket', 'Connected — waiting for agent updates…');
-    };
-
-    ws.onmessage = (event) => {
-      let msg;
-      try { msg = JSON.parse(event.data); } catch { return; }
-
-      if (msg.type === 'start') {
-        addFeedItem('▶', 'System', msg.message || 'Pipeline running…');
-
-      } else if (msg.type === 'progress') {
-        const icon = agentIcon(msg.agent);
-        addFeedItem(icon, msg.agent, msg.message || msg.action, msg.timestamp);
-
-      } else if (msg.type === 'complete') {
-        document.getElementById('feedSpinner').style.display = 'none';
-        stopTimer();
-        const report = msg.report || {};
-        const st = report.status || 'PASSED';
-        setStatus(st, statusClass(st));
-        const secs = (report.total_duration_seconds || 0).toFixed(2);
-        document.getElementById('duration').textContent = secs + 's';
-        addFeedItem('✅', 'AutoPilot', 'Pipeline complete · Status: ' + st);
-
-        // Render full JSON report
-        document.getElementById('reportCard').style.display = 'block';
-        document.getElementById('reportBox').textContent = JSON.stringify(report, null, 2);
-        document.getElementById('runBtn').disabled = false;
-        ws.close();
-
-      } else if (msg.type === 'error') {
-        document.getElementById('feedSpinner').style.display = 'none';
-        stopTimer();
-        setStatus('ERROR', '');
-        showError(msg.message || 'Pipeline error');
-        addFeedItem('❌', 'Error', msg.message || 'Pipeline failed');
-        document.getElementById('runBtn').disabled = false;
-        ws.close();
+    function FindingsTable({ findings }) {
+      if (!findings || findings.length === 0) {
+        return <p className="text-muted text-sm">No findings reported.</p>;
       }
-    };
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-pink/20 text-muted text-left">
+                <th className="py-2 pr-3">Severity</th>
+                <th className="py-2 pr-3">File</th>
+                <th className="py-2 pr-3">Line</th>
+                <th className="py-2 pr-3">Category</th>
+                <th className="py-2">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {findings.map((f, i) => {
+                const sev = (f.severity || 'low').toLowerCase();
+                const sevCls = SEVERITY_COLORS[sev] || SEVERITY_COLORS.low;
+                return (
+                  <tr key={i} className="border-b border-pink/15">
+                    <td className="py-2 pr-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${sevCls}`}>{f.severity}</span></td>
+                    <td className="py-2 pr-3 font-mono text-xs text-pink">{f.file}</td>
+                    <td className="py-2 pr-3 text-muted">{f.line}</td>
+                    <td className="py-2 pr-3 text-muted">{f.category}</td>
+                    <td className="py-2">{f.description}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
 
-    ws.onerror = () => {
-      addFeedItem('⚠', 'WebSocket', 'Connection error — results will still appear when the pipeline completes.');
-    };
-
-    ws.onclose = () => {
-      if (document.getElementById('runBtn').disabled) {
-        // Still running — pipeline might send result via REST fallback
+    function PatchesSection({ patches }) {
+      if (!patches || patches.length === 0) {
+        return <p className="text-muted text-sm">No patches generated.</p>;
       }
-    };
-  }
+      return (
+        <div className="space-y-6">
+          {patches.map((p, i) => (
+            <div key={i} className="bg-surface2/80 border border-pink/25 rounded-3xl p-4">
+              <div className="font-mono text-sm text-pink mb-3">{p.file}</div>
+              <div className="grid md:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <div className="text-xs text-muted mb-1 uppercase">Original</div>
+                  <pre className="bg-danger/15 border border-danger/30 rounded-2xl p-3 text-xs overflow-x-auto whitespace-pre-wrap">{p.original}</pre>
+                </div>
+                <div>
+                  <div className="text-xs text-muted mb-1 uppercase">Fixed</div>
+                  <pre className="bg-success/10 border border-success/30 rounded-2xl p-3 text-xs overflow-x-auto whitespace-pre-wrap">{p.fixed}</pre>
+                </div>
+              </div>
+              {p.explanation && <p className="text-sm text-muted">{p.explanation}</p>}
+            </div>
+          ))}
+        </div>
+      );
+    }
 
-  // Allow Enter key to trigger review
-  document.getElementById('prUrl').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') startReview();
-  });
-</script>
+    function DocumentationSection({ doc }) {
+      if (!doc) return <p className="text-muted text-sm">No documentation generated.</p>;
+      const docstrings = typeof doc.docstrings === 'string' ? doc.docstrings : JSON.stringify(doc.docstrings, null, 2);
+      return (
+        <div className="space-y-4">
+          {doc.summary && (
+            <div>
+              <h4 className="text-xs uppercase text-muted mb-2">Summary</h4>
+              <p className="text-sm leading-relaxed">{doc.summary}</p>
+            </div>
+          )}
+          {doc.changelog && (
+            <div>
+              <h4 className="text-xs uppercase text-muted mb-2">Changelog</h4>
+              <pre className="bg-surface2/60 border border-pink/20 rounded-2xl p-3 text-xs whitespace-pre-wrap">{doc.changelog}</pre>
+            </div>
+          )}
+          {docstrings && (
+            <div>
+              <h4 className="text-xs uppercase text-muted mb-2">Docstrings</h4>
+              <pre className="bg-surface2/60 border border-pink/20 rounded-2xl p-3 text-xs overflow-x-auto whitespace-pre-wrap">{docstrings}</pre>
+            </div>
+          )}
+        </div>
+      );
+    }
 
+    function AgentTimeline({ trace }) {
+      if (!trace || trace.length === 0) return null;
+      return (
+        <div className="overflow-x-auto pb-2">
+          <div className="flex items-start gap-0 min-w-max">
+            {trace.map((step, i) => (
+              <React.Fragment key={i}>
+                <div className="flex flex-col items-center w-36 shrink-0">
+                  <div className="w-3 h-3 rounded-full bg-pink mb-2" />
+                  <div className="text-xs font-semibold text-center">{step.agent}</div>
+                  <div className="text-xs text-muted text-center mt-1">{step.action}</div>
+                  <div className="text-xs text-muted/60 text-center mt-1 font-mono">
+                    {step.timestamp ? new Date(step.timestamp).toLocaleTimeString() : ''}
+                  </div>
+                </div>
+                {i < trace.length - 1 && (
+                  <div className="flex items-center self-start mt-[5px] px-2">
+                    <span className="text-pink text-xl font-bold leading-none drop-shadow-[0_0_4px_rgba(248,161,177,0.8)]">→</span>
+                  </div>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function ReportPanel({ report }) {
+      if (!report) return null;
+      return (
+        <div id="report-print" className="space-y-8 mt-8">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">DevReport</h2>
+            <button
+              onClick={() => window.print()}
+              className="no-print bg-pink hover:bg-accenthover text-bg font-semibold px-5 py-2.5 rounded-full text-sm transition shadow-md"
+            >
+              Download Report as PDF
+            </button>
+          </div>
+          <p className="text-sm text-muted font-mono">{report.pr_url}</p>
+
+          <section>
+            <h3 className="text-sm font-semibold text-muted uppercase tracking-wide mb-3">Summary</h3>
+            <SummaryCards report={report} />
+          </section>
+
+          <section>
+            <h3 className="text-sm font-semibold text-muted uppercase tracking-wide mb-3">Findings</h3>
+            <FindingsTable findings={(report.review || {}).findings} />
+          </section>
+
+          <section>
+            <h3 className="text-sm font-semibold text-muted uppercase tracking-wide mb-3">Patches Applied</h3>
+            <PatchesSection patches={report.patches} />
+          </section>
+
+          <section>
+            <h3 className="text-sm font-semibold text-muted uppercase tracking-wide mb-3">Documentation</h3>
+            <DocumentationSection doc={report.documentation} />
+          </section>
+
+          <section>
+            <h3 className="text-sm font-semibold text-muted uppercase tracking-wide mb-3">Agent Trace Timeline</h3>
+            <AgentTimeline trace={report.agent_trace} />
+          </section>
+        </div>
+      );
+    }
+
+    // ── Main App ──────────────────────────────────────────────────────────
+    function App() {
+      const [prUrl, setPrUrl] = useState('');
+      const [running, setRunning] = useState(false);
+      const [status, setStatus] = useState('IDLE');
+      const [duration, setDuration] = useState('');
+      const [error, setError] = useState('');
+      const [nodeStates, setNodeStates] = useState(initialNodeStates);
+      const [recentLog, setRecentLog] = useState([]);
+      const [report, setReport] = useState(null);
+      const [retryActive, setRetryActive] = useState(false);
+
+      const wsRef = useRef(null);
+      const timerRef = useRef(null);
+      const startTsRef = useRef(null);
+      const currentNodeRef = useRef(null);
+
+      const addLog = useCallback((agent, message) => {
+        setRecentLog((prev) => {
+          const entry = { agent: agent || 'System', message, ts: new Date().toLocaleTimeString() };
+          return [...prev.slice(-4), entry];
+        });
+      }, []);
+
+      const setNode = useCallback((nodeId, state) => {
+        if (!nodeId) return;
+        setNodeStates((prev) => ({ ...prev, [nodeId]: state }));
+      }, []);
+
+      const markPreviousDone = useCallback((activeNodeId) => {
+        const idx = NODE_ORDER.indexOf(activeNodeId);
+        if (idx <= 0) return;
+        setNodeStates((prev) => {
+          const next = { ...prev };
+          for (let i = 0; i < idx; i++) {
+            const id = NODE_ORDER[i];
+            if (next[id] === 'RUNNING' || next[id] === 'DONE') next[id] = 'DONE';
+          }
+          return next;
+        });
+      }, []);
+
+      const handleAgentProgress = useCallback((agent, message, action) => {
+        const nodeId = mapAgentToNode(agent);
+        if (!nodeId) return;
+
+        if (action && action.includes('fix_bugs_attempt') && (action.includes('2') || action.includes('3'))) {
+          setRetryActive(true);
+          setNode('fixer', 'RUNNING');
+          setNode('tester', 'WAITING');
+        }
+
+        if (action && action.includes('run_tests') && message && message.toLowerCase().includes('fail')) {
+          setRetryActive(true);
+          setNode('tester', 'FAILED');
+          setTimeout(() => setNode('fixer', 'RUNNING'), 400);
+        }
+
+        markPreviousDone(nodeId);
+        setNode(nodeId, 'RUNNING');
+        currentNodeRef.current = nodeId;
+        addLog(agent, message);
+      }, [setNode, markPreviousDone, addLog]);
+
+      const reset = useCallback(() => {
+        setNodeStates(initialNodeStates());
+        setRecentLog([]);
+        setReport(null);
+        setError('');
+        setRetryActive(false);
+        setDuration('');
+        currentNodeRef.current = null;
+        if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      }, []);
+
+      const startTimer = () => {
+        startTsRef.current = Date.now();
+        timerRef.current = setInterval(() => {
+          setDuration(((Date.now() - startTsRef.current) / 1000).toFixed(1) + 's');
+        }, 100);
+      };
+
+      const stopTimer = () => {
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      };
+
+      const startReview = async () => {
+        const url = prUrl.trim();
+        if (!url) { setError('Please enter a GitHub PR URL.'); return; }
+        if (!url.includes('github.com') || !url.includes('/pull/')) {
+          setError('URL must be: https://github.com/owner/repo/pull/123');
+          return;
+        }
+
+        reset();
+        setRunning(true);
+        setStatus('IN PROGRESS');
+        startTimer();
+
+        let sessionId;
+        try {
+          const resp = await fetch(API + '/api/review', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pr_url: url }),
+          });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const data = await resp.json();
+          if (!data.success) throw new Error(data.error || 'Server error');
+          sessionId = data.session_id;
+        } catch (e) {
+          setError('Failed to start: ' + e.message);
+          setStatus('ERROR');
+          setRunning(false);
+          stopTimer();
+          return;
+        }
+
+        addLog('AutoPilot', 'Pipeline started — session ' + sessionId.slice(0, 8) + '…');
+        setNode('fetcher', 'RUNNING');
+        currentNodeRef.current = 'fetcher';
+
+        const ws = new WebSocket('ws://localhost:8000/api/ws/' + sessionId);
+        wsRef.current = ws;
+
+        ws.onopen = () => addLog('WebSocket', 'Connected — waiting for updates…');
+
+        ws.onmessage = (event) => {
+          let msg;
+          try { msg = JSON.parse(event.data); } catch { return; }
+
+          if (msg.type === 'start') {
+            setNode('fetcher', 'RUNNING');
+            addLog('System', msg.message || 'Pipeline running…');
+
+          } else if (msg.type === 'progress') {
+            handleAgentProgress(msg.agent, msg.message || msg.action, msg.action);
+
+          } else if (msg.type === 'complete') {
+            stopTimer();
+            const r = msg.report || {};
+            setReport(r);
+            const st = r.status || 'PASSED';
+            setStatus(st);
+            setDuration((r.total_duration_seconds || 0).toFixed(2) + 's');
+
+            const finalStates = {};
+            PIPELINE_NODES.forEach((n) => { finalStates[n.id] = 'DONE'; });
+            setNodeStates(finalStates);
+            setRetryActive(false);
+            addLog('AutoPilot', 'Pipeline complete — ' + st);
+            setRunning(false);
+            ws.close();
+
+          } else if (msg.type === 'error') {
+            stopTimer();
+            setStatus('ERROR');
+            setError(msg.message || 'Pipeline error');
+            if (currentNodeRef.current) setNode(currentNodeRef.current, 'FAILED');
+            addLog('Error', msg.message);
+            setRunning(false);
+            ws.close();
+          }
+        };
+
+        ws.onerror = () => addLog('WebSocket', 'Connection error');
+      };
+
+      useEffect(() => () => {
+        if (wsRef.current) wsRef.current.close();
+        if (timerRef.current) clearInterval(timerRef.current);
+      }, [])
+
+      return (
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          {/* Two columns */}
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Left 40% */}
+            <div className="lg:w-[40%] shrink-0">
+              <div className="bg-surface/90 border border-pink/30 rounded-[2rem] p-6 shadow-lg backdrop-blur-sm">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-pink to-[#FFD4DC] bg-clip-text text-transparent mb-1">
+                   AutoPilot Dev
+                </h1>
+                <p className="text-muted text-sm mb-6">Autonomous GitHub PR Review &amp; Bug Fix</p>
+
+                <label className="text-xs uppercase text-muted tracking-wide">GitHub Pull Request</label>
+                <input
+                  type="url"
+                  value={prUrl}
+                  onChange={(e) => setPrUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !running && startReview()}
+                  placeholder="https://github.com/owner/repo/pull/123"
+                  disabled={running}
+                  className="w-full mt-2 mb-4 bg-bg/80 border border-pink/30 rounded-full px-5 py-2.5 text-sm focus:outline-none focus:border-pink focus:ring-2 focus:ring-pink/30 disabled:opacity-50"
+                />
+
+                <button
+                  onClick={startReview}
+                  disabled={running}
+                  className="w-full bg-pink hover:bg-accenthover disabled:opacity-40 text-bg font-bold py-3 rounded-full text-sm transition shadow-md no-print"
+                >
+                  {running ? ' Running…' : 'Analyse'}
+                </button>
+
+                {error && (
+                  <div className="mt-3 text-[#FFD4DC] text-sm bg-danger/20 border border-danger/40 rounded-2xl px-4 py-2">
+                    ⚠ {error}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 mt-5">
+                  <span className="text-muted text-sm">Status</span>
+                  <span className={`px-4 py-1 rounded-full text-xs font-bold uppercase border ${statusBadgeClass(status)}`}>
+                    {formatStatus(status)}
+                  </span>
+                  {duration && <span className="text-muted text-sm ml-auto font-mono">{duration}</span>}
+                </div>
+              </div>
+            </div>
+
+            {/* Right 60% */}
+            <div className="lg:w-[60%]">
+              <div className="bg-surface/90 border border-pink/30 rounded-[2rem] p-6 h-full shadow-lg backdrop-blur-sm">
+                <h2 className="text-xs uppercase text-pink tracking-wide mb-4">Live Pipeline</h2>
+                <PipelineDiagram nodeStates={nodeStates} retryActive={retryActive} />
+
+                <div className="mt-6 border-t border-pink/20 pt-4">
+                  <h3 className="text-xs uppercase text-muted tracking-wide mb-2">Recent Activity</h3>
+                  {recentLog.length === 0 ? (
+                    <p className="text-muted text-sm">Waiting for pipeline events…</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {recentLog.map((entry, i) => (
+                        <li key={i} className="text-xs font-mono">
+                          <span className="text-muted">{entry.ts}</span>
+                          <span className="text-pink ml-2">{entry.agent}</span>
+                          <span className="text-muted ml-2">{entry.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Report below */}
+          {report && <ReportPanel report={report} />}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
 </body>
 </html>
