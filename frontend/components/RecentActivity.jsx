@@ -1,0 +1,20 @@
+export default function RecentActivity({ recentLog }) {
+  return (
+    <div className="mt-8 border-t border-pink/20 pt-5">
+      <h3 className="text-xs uppercase text-muted tracking-wide mb-3">Recent Activity</h3>
+      {recentLog.length === 0 ? (
+        <p className="text-muted text-sm">Waiting for pipeline events…</p>
+      ) : (
+        <ul className="space-y-2.5">
+          {recentLog.map((entry, i) => (
+            <li key={i} className="text-xs font-mono leading-relaxed break-words">
+              <span className="text-muted whitespace-nowrap">{entry.ts}</span>
+              <span className="text-pink ml-2">{entry.agent}</span>
+              <span className="text-muted ml-2">{entry.message}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

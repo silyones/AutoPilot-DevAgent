@@ -14,23 +14,19 @@ from __future__ import annotations
 from pathlib import Path
 
 # ── LangSmith tracing — must be imported before api.routes (which loads LangGraph) ──
-# backend.tracing sets LANGCHAIN_* env vars at module load time.
-# backend.tracing itself only imports os + backend.config — no langchain — so
-# the env vars are in place before LangGraph/LangChain reads them.
 import backend.tracing  # noqa: F401  (side-effect import — sets env vars)
 
-
-
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-
+from fastapi.staticfiles import StaticFiles
 
 from api.routes import router
 from backend.config import settings
 from backend.utils.logger import get_logger
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+FRONTEND_DIST = FRONTEND_DIR / "out"
 
 logger = get_logger(__name__)
 
@@ -45,8 +41,6 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
-# Allow all origins during local development so any frontend host works.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -55,37 +49,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(router, prefix="/api")
 
 
-# ── Frontend (UI served from the API container) ───────────────────────────────
-@app.get("/", include_in_schema=False)
-async def serve_frontend() -> FileResponse:
-    """Serve the AutoPilot Dev UI at the root URL."""
-    index_path = FRONTEND_DIR / "index.html"
-    if not index_path.is_file():
-        raise RuntimeError(f"Frontend not found: {index_path}")
-    return FileResponse(index_path)
-
-
-@app.get("/app.js", include_in_schema=False)
-async def serve_app_js() -> FileResponse:
-    """Serve the React application module (no build step, ES modules)."""
-    app_path = FRONTEND_DIR / "app.js"
-    if not app_path.is_file():
-        raise RuntimeError(f"Frontend app not found: {app_path}")
-    return FileResponse(app_path, media_type="application/javascript")
-
-
-# ── Health probe ──────────────────────────────────────────────────────────────
 @app.get("/health", tags=["Health"])
 async def health() -> dict:
     """Liveness probe — returns 200 if the service is up."""
     return {"status": "ok", "service": "AutoPilot Dev"}
 
 
-# ── Startup / shutdown hooks ──────────────────────────────────────────────────
+def _frontend_index() -> Path:
+    index_path = FRONTEND_DIST / "index.html"
+    if not index_path.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail="Frontend not built. Rebuild with: docker-compose up --build",
+        )
+    return index_path
+
+
+@app.get("/", include_in_schema=False)
+async def serve_frontend() -> FileResponse:
+    """Serve the Next.js-built React UI."""
+    return FileResponse(_frontend_index())
+
+
+if FRONTEND_DIST.is_dir() and (FRONTEND_DIST / "_next").is_dir():
+    app.mount("/_next", StaticFiles(directory=FRONTEND_DIST / "_next"), name="next_static")
+
+
 @app.on_event("startup")
 async def on_startup() -> None:
     logger.info(
@@ -94,6 +86,11 @@ async def on_startup() -> None:
         settings.fastapi_port,
         settings.env,
     )
+    if not (FRONTEND_DIST / "index.html").is_file():
+        logger.warning(
+            "Frontend dist missing at %s — rebuild with: docker-compose up --build",
+            FRONTEND_DIST,
+        )
 
 
 @app.on_event("shutdown")
