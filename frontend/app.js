@@ -291,28 +291,10 @@ function PatchesSection({ patches }) {
 }
 
 function DocumentationSection({ doc }) {
-  if (!doc) return html`<p class="text-muted text-sm">No documentation generated.</p>`;
-  const docstrings = typeof doc.docstrings === 'string' ? doc.docstrings : JSON.stringify(doc.docstrings, null, 2);
+  if (!doc?.summary) return html`<p class="text-muted text-sm">No documentation generated.</p>`;
   return html`
-    <div class="space-y-4">
-      ${doc.summary ? html`
-        <div>
-          <h4 class="text-xs uppercase text-muted mb-2">Summary</h4>
-          <p class="text-sm leading-relaxed">${doc.summary}</p>
-        </div>
-      ` : null}
-      ${doc.changelog ? html`
-        <div>
-          <h4 class="text-xs uppercase text-muted mb-2">Changelog</h4>
-          <pre class="bg-surface2/60 border border-pink/20 rounded-2xl p-3 text-xs whitespace-pre-wrap">${doc.changelog}</pre>
-        </div>
-      ` : null}
-      ${docstrings ? html`
-        <div>
-          <h4 class="text-xs uppercase text-muted mb-2">Docstrings</h4>
-          <pre class="bg-surface2/60 border border-pink/20 rounded-2xl p-3 text-xs overflow-x-auto whitespace-pre-wrap">${docstrings}</pre>
-        </div>
-      ` : null}
+    <div>
+      <p class="text-sm leading-relaxed">${doc.summary}</p>
     </div>
   `;
 }

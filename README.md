@@ -42,7 +42,7 @@ AutoPilot Dev uses a **LangGraph StateGraph** as the orchestration backbone. The
        ├─── No (max retries hit) ────────→ NEEDS_HUMAN_REVIEW │
        ▼                                                      │
 ┌─────────────┐                                              │
-│   document  │  — Documenter Agent → docstrings, changelog  │
+│   document  │  — Documenter Agent → PR summary              │
 └──────┬──────┘                                              │
        ▼                                                      ▼
 ┌──────────────────────────────────────────────────────────────┐
@@ -67,7 +67,8 @@ AutoPilot Dev uses a **LangGraph StateGraph** as the orchestration backbone. The
 | **PostgreSQL** | Persistence — stores complete `DevReport` records as JSONB via SQLAlchemy async |
 | **Redis** | Caching — PR diffs cached 1 hour (6000× speedup on repeat runs), session state 2 hours |
 | **LangSmith** | Observability — traces every LLM call across all agents in the `autopilot_dev` project |
-| **Docker** | Infrastructure — `docker-compose up` starts Postgres + Redis + API in one command |
+| **Docker** | Infrastructure — `docker-compose up --build` starts Postgres + Redis + API in one command |
+| **React (ES modules)** | Browser UI — `frontend/app.js` + Tailwind CDN, no npm build step |
 
 ---
 
@@ -77,16 +78,19 @@ AutoPilot Dev uses a **LangGraph StateGraph** as the orchestration backbone. The
 AutoPilot_Dev/
 ├── .env                      # API keys & config (never committed)
 ├── .env.example              # Template for .env
-├── docker-compose.yml        # Postgres + Redis + API services
+├── docker-compose.yml        # Postgres + Redis + API (Docker-only stack)
+├── docker-entrypoint.sh      # Runs alembic migrations, then uvicorn
 ├── Dockerfile                # python:3.11-slim image
+├── pytest.ini                # Pytest markers (graph integration tests)
 ├── requirements.txt
 ├── alembic.ini
 │
 ├── frontend/
-│   └── index.html            # Single-file dark-theme UI (no dependencies)
+│   ├── index.html            # UI shell (Tailwind CDN, import map)
+│   └── app.js                # React UI (ES modules + htm, no build step)
 │
 ├── api/                      # FastAPI application
-│   ├── main.py               # App factory + CORS + startup hooks
+│   ├── main.py               # Serves /, /app.js, /api/*, /health
 │   ├── routes.py             # POST /review, WS /ws/{id}, GET /reports
 │   └── websocket_manager.py  # ConnectionManager singleton
 │
@@ -135,27 +139,39 @@ AutoPilot_Dev/
 ## Setup & Run
 
 ### Prerequisites
-- **Docker Desktop** (runs Postgres, Redis, and the API — no local Python/uvicorn needed)
+- **Docker Desktop** only — Postgres, Redis, and the API all run in containers
+- No local `uvicorn`, venv, or system Postgres required
 
-### Quick Start (Docker only)
+### Quick Start
 
 ```bash
-# 1. Clone the repository
+# 1. Clone and enter the project
 git clone https://github.com/your-username/AutoPilot-Dev.git
 cd AutoPilot-Dev
 
 # 2. Configure environment
 cp .env.example .env
-# Edit .env — fill in GROQ_API_KEY, GITHUB_TOKEN, LANGCHAIN_API_KEY, POSTGRES_PASSWORD
+# Edit .env — set GROQ_API_KEY, GITHUB_TOKEN, LANGCHAIN_API_KEY, POSTGRES_PASSWORD
 
-# 3. Start everything (Postgres + Redis + API + auto-migrations)
+# 3. Start the full stack (builds API image, runs migrations, starts all services)
 docker-compose up --build
 ```
 
-Then open **http://localhost:8000** — the UI is served by the API container.
+Run in the background:
 
-- Swagger UI: http://localhost:8000/docs
-- Health check: http://localhost:8000/health
+```bash
+docker-compose up --build -d
+```
+
+### Docker containers
+
+| Container | Purpose | Host port |
+|-----------|---------|-----------|
+| `autopilot-api` | FastAPI + React UI + auto-migrations | `8000` |
+| `autopilot-postgres` | Report persistence (`dev_reports` table) | `5433` |
+| `autopilot-redis` | PR diff caching | `6379` |
+
+On startup, `autopilot-api` runs `alembic upgrade head` then `uvicorn`. The API container overrides `DATABASE_URL` and `REDIS_URL` to use Docker service names (`postgres`, `redis`) — not your local Postgres install.
 
 Stop the stack:
 
@@ -163,9 +179,40 @@ Stop the stack:
 docker-compose down
 ```
 
+### Using the UI
+
+1. Ensure `docker-compose up` is running and `autopilot-api` is healthy
+2. Open **http://localhost:8000**
+3. Paste a GitHub PR URL (e.g. `https://github.com/owner/repo/pull/1`)
+4. Click **Analyse**
+5. Watch the live pipeline diagram and status badge update via WebSocket
+6. When complete, scroll down for the DevReport (summary cards, findings table, patches, documentation summary, agent timeline)
+7. Click **Download Report as PDF** to print/save via the browser
+
+Other URLs:
+
+- Swagger UI: http://localhost:8000/docs
+- Health check: http://localhost:8000/health
+- App module: http://localhost:8000/app.js
+
+The frontend resolves the API base URL from `window.location.origin` (same host as the page). No hardcoded `localhost` in the app code.
+
+### Frontend architecture
+
+| File | Role |
+|------|------|
+| `frontend/index.html` | Shell — Tailwind CDN, CSS theme, React import map |
+| `frontend/app.js` | React UI via ES modules + [htm](https://github.com/developit/htm) (no Babel, no `unsafe-eval`, no npm build) |
+
+UI layout:
+
+- **Left column** — PR URL input, Analyse button, status badge, duration
+- **Right column** — live pipeline diagram (node states: waiting / running / done / failed) + last 5 activity log lines
+- **Report section** — readable DevReport sections (not raw JSON), with PDF export via `window.print()`
+
 ### pgAdmin / external DB tools
 
-Connect to the **Docker** Postgres (not your local install):
+Connect to **Docker** Postgres (port `5433` avoids clashing with a local Postgres on `5432`):
 
 | Field    | Value           |
 |----------|-----------------|
@@ -175,9 +222,11 @@ Connect to the **Docker** Postgres (not your local install):
 | Username | `postgres`      |
 | Password | value from `.env` `POSTGRES_PASSWORD` |
 
+After at least one review, refresh **Schemas → public → Tables → `dev_reports`**.
+
 ### Running tests locally (optional)
 
-Tests still run on your machine with Python installed:
+Tests run on your machine with Python installed — they do not require Docker for the fast offline suite:
 
 ```bash
 pip install -r requirements.txt
@@ -252,9 +301,7 @@ curl -X POST http://localhost:8000/api/review \
     "status": "PASS"
   },
   "documentation": {
-    "docstrings": "def get_path_param_gt(item_id: float):\n    \"\"\"Return item_id if it is greater than 0.\"\"\"\n    ...",
-    "changelog": "## [Unreleased]\n### Fixed\n- Added input validation for path parameters",
-    "summary": "This PR adds tests for FastAPI path parameter validation endpoints."
+    "summary": "This PR adds tests for FastAPI path parameter validation endpoints and fixes missing input validation on path parameters."
   },
   "agent_trace": [
     {"agent": "GitHub Fetcher", "action": "fetch_pr", "result": "Fetched PR: Add tests for path endpoints — 2 files changed", "timestamp": "2026-06-08T06:29:42Z"},
@@ -269,20 +316,24 @@ curl -X POST http://localhost:8000/api/review \
 }
 ```
 
+> **Note:** The backend may still store `changelog` and `docstrings` in PostgreSQL JSONB. The UI displays only the **summary** under Documentation.
+
 ---
 
 ## Running Tests
 
 ```bash
-# Run all tests
-pytest tests/ -v
-
-# Run only fast offline tests (skip graph integration tests)
+# Fast offline tests (no Groq, no live server)
 pytest tests/test_github_tool.py tests/test_api.py -v
 
-# Run graph tests (calls Groq — requires GROQ_API_KEY)
+# All tests including graph integration (calls Groq — requires GROQ_API_KEY)
+pytest tests/ -v
+
+# Graph tests only
 pytest tests/test_graph.py -v -m graph
 ```
+
+Pytest config lives in `pytest.ini` (no root `conftest.py`). The `graph` marker flags tests that call the live Groq API.
 
 ---
 
