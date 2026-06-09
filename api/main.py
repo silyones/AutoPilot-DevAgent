@@ -59,7 +59,7 @@ app.add_middleware(
 app.include_router(router, prefix="/api")
 
 
-# ── Frontend (single-page UI served from the API container) ───────────────────
+# ── Frontend (UI served from the API container) ───────────────────────────────
 @app.get("/", include_in_schema=False)
 async def serve_frontend() -> FileResponse:
     """Serve the AutoPilot Dev UI at the root URL."""
@@ -67,6 +67,15 @@ async def serve_frontend() -> FileResponse:
     if not index_path.is_file():
         raise RuntimeError(f"Frontend not found: {index_path}")
     return FileResponse(index_path)
+
+
+@app.get("/app.js", include_in_schema=False)
+async def serve_app_js() -> FileResponse:
+    """Serve the React application module (no build step, ES modules)."""
+    app_path = FRONTEND_DIR / "app.js"
+    if not app_path.is_file():
+        raise RuntimeError(f"Frontend app not found: {app_path}")
+    return FileResponse(app_path, media_type="application/javascript")
 
 
 # ── Health probe ──────────────────────────────────────────────────────────────
