@@ -10,31 +10,41 @@
       theme: {
         extend: {
           colors: {
-            bg: '#0d1117',
-            surface: '#161b22',
-            border: '#30363d',
-            accent: '#58a6ff',
-            success: '#3fb950',
-            warn: '#d29922',
-            danger: '#f85149',
-            muted: '#8b949e',
+            bg: '#0A1612',
+            surface: '#132A22',
+            surface2: '#1A3529',
+            border: '#F8A1B1',
+            accent: '#F8A1B1',
+            accenthover: '#FFD4DC',
+            success: '#6EE7A8',
+            warn: '#FFD4A8',
+            danger: '#E85D75',
+            muted: '#8FB9A5',
+            forest: '#0D2818',
+            pink: '#F8A1B1',
           },
         },
       },
     };
   </script>
   <style>
-    body { background: #0d1117; }
-    @keyframes pulse-blue {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.5); }
-      50% { box-shadow: 0 0 16px 4px rgba(88, 166, 255, 0.35); }
+    body {
+      background: #0A1612;
+      background-image:
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(26, 53, 41, 0.5) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 100% 100%, rgba(13, 40, 24, 0.4) 0%, transparent 60%);
     }
-    .node-running { animation: pulse-blue 1.5s ease-in-out infinite; }
+    @keyframes pulse-pink {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(248, 161, 177, 0.55); }
+      50% { box-shadow: 0 0 18px 5px rgba(248, 161, 177, 0.4); }
+    }
+    .node-running { animation: pulse-pink 1.5s ease-in-out infinite; }
+    .blob-card { border-radius: 2rem; }
     .arrow-down::after {
       content: '↓';
       display: block;
       text-align: center;
-      color: #8b949e;
+      color: #F8A1B1;
       font-size: 1.25rem;
       line-height: 1;
       margin: 4px 0;
@@ -61,7 +71,7 @@
     .print-only { display: none; }
   </style>
 </head>
-<body class="text-white min-h-screen">
+<body class="text-[#FFF5F7] min-h-screen">
   <div id="root"></div>
 
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
@@ -90,17 +100,17 @@
     const NODE_ORDER = PIPELINE_NODES.map((n) => n.id);
 
     const STATUS_STYLES = {
-      WAITING: 'border-dashed border-gray-600 bg-gray-900/50 text-gray-400',
-      RUNNING: 'border-accent bg-accent/10 text-accent node-running',
-      DONE: 'border-success bg-success/10 text-success',
-      FAILED: 'border-danger bg-danger/10 text-danger',
+      WAITING: 'border-dashed border-muted/30 bg-bg/60 text-muted rounded-3xl',
+      RUNNING: 'border-pink bg-pink/20 text-pink node-running rounded-3xl',
+      DONE: 'border-success bg-success/15 text-success rounded-3xl',
+      FAILED: 'border-danger bg-danger/20 text-danger rounded-3xl',
     };
 
     const SEVERITY_COLORS = {
-      critical: 'text-red-400 bg-red-900/30',
-      high: 'text-orange-400 bg-orange-900/30',
-      medium: 'text-yellow-400 bg-yellow-900/30',
-      low: 'text-gray-400 bg-gray-800/50',
+      critical: 'text-[#FFD4DC] bg-danger/40',
+      high: 'text-warn bg-warn/25',
+      medium: 'text-pink bg-pink/20',
+      low: 'text-muted bg-forest/50',
     };
 
     function mapAgentToNode(agent) {
@@ -120,13 +130,13 @@
 
     function statusBadgeClass(status) {
       const m = {
-        'IN PROGRESS': 'bg-warn/20 text-warn border-warn/50',
+        'IN PROGRESS': 'bg-pink/25 text-pink border-pink/60',
         PASSED: 'bg-success/20 text-success border-success/50',
-        FIXED: 'bg-accent/20 text-accent border-accent/50',
-        NEEDS_HUMAN_REVIEW: 'bg-danger/20 text-danger border-danger/50',
-        ERROR: 'bg-danger/20 text-danger border-danger/50',
+        FIXED: 'bg-pink/30 text-[#FFF5F7] border-pink/70',
+        NEEDS_HUMAN_REVIEW: 'bg-danger/25 text-[#FFD4DC] border-danger/50',
+        ERROR: 'bg-danger/25 text-[#FFD4DC] border-danger/50',
       };
-      return m[status] || 'bg-gray-800 text-muted border-border';
+      return m[status] || 'bg-forest/60 text-muted border-pink/30';
     }
 
     function formatStatus(s) {
@@ -138,7 +148,7 @@
     function PipelineNode({ label, state }) {
       const cls = STATUS_STYLES[state] || STATUS_STYLES.WAITING;
       return (
-        <div className={`rounded-lg border-2 px-4 py-3 text-center text-sm font-semibold transition-all duration-300 ${cls}`}>
+        <div className={`border-2 px-5 py-3.5 text-center text-sm font-semibold transition-all duration-300 ${cls}`}>
           {state === 'DONE' && <span className="mr-1">✓</span>}
           {state === 'FAILED' && <span className="mr-1">✗</span>}
           {label}
@@ -157,7 +167,7 @@
                 <div className="relative w-full flex justify-center my-1">
                   <div className="arrow-down" />
                   {retryActive && (
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-warn border border-warn/40 rounded px-2 py-1 whitespace-nowrap">
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 text-xs text-warn border border-warn/50 rounded-full px-3 py-1 whitespace-nowrap bg-warn/10">
                       ↺ retry loop
                     </div>
                   )}
@@ -197,21 +207,21 @@
 
       return (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-surface border border-border rounded-lg p-4">
+          <div className="bg-surface2/80 border border-pink/25 rounded-3xl p-4">
             <div className="text-muted text-xs uppercase tracking-wide mb-1">Total Issues</div>
             <div className="text-2xl font-bold">{review.total_issues ?? findings.length}</div>
             <div className="text-xs text-muted mt-2 space-x-2">
-              <span className="text-red-400">C:{severity.critical}</span>
-              <span className="text-orange-400">H:{severity.high}</span>
-              <span className="text-yellow-400">M:{severity.medium}</span>
-              <span className="text-gray-400">L:{severity.low}</span>
+              <span className="text-danger">C:{severity.critical}</span>
+              <span className="text-warn">H:{severity.high}</span>
+              <span className="text-pink">M:{severity.medium}</span>
+              <span className="text-muted">L:{severity.low}</span>
             </div>
           </div>
-          <div className="bg-surface border border-border rounded-lg p-4">
+          <div className="bg-surface2/80 border border-pink/25 rounded-3xl p-4">
             <div className="text-muted text-xs uppercase tracking-wide mb-1">Patches Generated</div>
-            <div className="text-2xl font-bold text-accent">{patches.length}</div>
+            <div className="text-2xl font-bold text-pink">{patches.length}</div>
           </div>
-          <div className="bg-surface border border-border rounded-lg p-4">
+          <div className="bg-surface2/80 border border-pink/25 rounded-3xl p-4">
             <div className="text-muted text-xs uppercase tracking-wide mb-1">Tests</div>
             <div className="text-2xl font-bold">
               <span className="text-success">{tests.passed ?? 0}</span>
@@ -220,9 +230,9 @@
             </div>
             <div className="text-xs text-muted mt-1">passed / failed</div>
           </div>
-          <div className="bg-surface border border-border rounded-lg p-4">
+          <div className="bg-surface2/80 border border-pink/25 rounded-3xl p-4">
             <div className="text-muted text-xs uppercase tracking-wide mb-1">Duration</div>
-            <div className="text-2xl font-bold">{(report.total_duration_seconds || 0).toFixed(2)}s</div>
+            <div className="text-2xl font-bold text-pink">{(report.total_duration_seconds || 0).toFixed(2)}s</div>
           </div>
         </div>
       );
@@ -236,7 +246,7 @@
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-muted text-left">
+              <tr className="border-b border-pink/20 text-muted text-left">
                 <th className="py-2 pr-3">Severity</th>
                 <th className="py-2 pr-3">File</th>
                 <th className="py-2 pr-3">Line</th>
@@ -249,9 +259,9 @@
                 const sev = (f.severity || 'low').toLowerCase();
                 const sevCls = SEVERITY_COLORS[sev] || SEVERITY_COLORS.low;
                 return (
-                  <tr key={i} className="border-b border-border/50">
-                    <td className="py-2 pr-3"><span className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${sevCls}`}>{f.severity}</span></td>
-                    <td className="py-2 pr-3 font-mono text-xs text-accent">{f.file}</td>
+                  <tr key={i} className="border-b border-pink/15">
+                    <td className="py-2 pr-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${sevCls}`}>{f.severity}</span></td>
+                    <td className="py-2 pr-3 font-mono text-xs text-pink">{f.file}</td>
                     <td className="py-2 pr-3 text-muted">{f.line}</td>
                     <td className="py-2 pr-3 text-muted">{f.category}</td>
                     <td className="py-2">{f.description}</td>
@@ -271,16 +281,16 @@
       return (
         <div className="space-y-6">
           {patches.map((p, i) => (
-            <div key={i} className="bg-surface border border-border rounded-lg p-4">
-              <div className="font-mono text-sm text-accent mb-3">📄 {p.file}</div>
+            <div key={i} className="bg-surface2/80 border border-pink/25 rounded-3xl p-4">
+              <div className="font-mono text-sm text-pink mb-3">{p.file}</div>
               <div className="grid md:grid-cols-2 gap-3 mb-3">
                 <div>
                   <div className="text-xs text-muted mb-1 uppercase">Original</div>
-                  <pre className="bg-red-950/40 border border-red-900/50 rounded p-3 text-xs overflow-x-auto whitespace-pre-wrap">{p.original}</pre>
+                  <pre className="bg-danger/15 border border-danger/30 rounded-2xl p-3 text-xs overflow-x-auto whitespace-pre-wrap">{p.original}</pre>
                 </div>
                 <div>
                   <div className="text-xs text-muted mb-1 uppercase">Fixed</div>
-                  <pre className="bg-green-950/40 border border-green-900/50 rounded p-3 text-xs overflow-x-auto whitespace-pre-wrap">{p.fixed}</pre>
+                  <pre className="bg-success/10 border border-success/30 rounded-2xl p-3 text-xs overflow-x-auto whitespace-pre-wrap">{p.fixed}</pre>
                 </div>
               </div>
               {p.explanation && <p className="text-sm text-muted">{p.explanation}</p>}
@@ -304,13 +314,13 @@
           {doc.changelog && (
             <div>
               <h4 className="text-xs uppercase text-muted mb-2">Changelog</h4>
-              <pre className="bg-surface border border-border rounded p-3 text-xs whitespace-pre-wrap">{doc.changelog}</pre>
+              <pre className="bg-surface2/60 border border-pink/20 rounded-2xl p-3 text-xs whitespace-pre-wrap">{doc.changelog}</pre>
             </div>
           )}
           {docstrings && (
             <div>
               <h4 className="text-xs uppercase text-muted mb-2">Docstrings</h4>
-              <pre className="bg-surface border border-border rounded p-3 text-xs overflow-x-auto whitespace-pre-wrap">{docstrings}</pre>
+              <pre className="bg-surface2/60 border border-pink/20 rounded-2xl p-3 text-xs overflow-x-auto whitespace-pre-wrap">{docstrings}</pre>
             </div>
           )}
         </div>
@@ -325,7 +335,7 @@
             {trace.map((step, i) => (
               <React.Fragment key={i}>
                 <div className="flex flex-col items-center w-36 shrink-0">
-                  <div className="w-3 h-3 rounded-full bg-accent mb-2" />
+                  <div className="w-3 h-3 rounded-full bg-pink mb-2" />
                   <div className="text-xs font-semibold text-center">{step.agent}</div>
                   <div className="text-xs text-muted text-center mt-1">{step.action}</div>
                   <div className="text-xs text-muted/60 text-center mt-1 font-mono">
@@ -333,10 +343,8 @@
                   </div>
                 </div>
                 {i < trace.length - 1 && (
-                  <div className="flex items-center pt-1 px-1">
-                    <div className="w-8 h-0.5 bg-border" />
-                    <span className="text-muted text-xs">→</span>
-                    <div className="w-8 h-0.5 bg-border" />
+                  <div className="flex items-center self-start mt-[5px] px-2">
+                    <span className="text-pink text-xl font-bold leading-none drop-shadow-[0_0_4px_rgba(248,161,177,0.8)]">→</span>
                   </div>
                 )}
               </React.Fragment>
@@ -354,7 +362,7 @@
             <h2 className="text-lg font-bold">DevReport</h2>
             <button
               onClick={() => window.print()}
-              className="no-print bg-accent hover:bg-accent/80 text-bg font-semibold px-4 py-2 rounded-lg text-sm transition"
+              className="no-print bg-pink hover:bg-accenthover text-bg font-semibold px-5 py-2.5 rounded-full text-sm transition shadow-md"
             >
               Download Report as PDF
             </button>
@@ -561,7 +569,7 @@
       useEffect(() => () => {
         if (wsRef.current) wsRef.current.close();
         if (timerRef.current) clearInterval(timerRef.current);
-      }, []);
+      }, [])
 
       return (
         <div className="max-w-7xl mx-auto px-4 py-8">
@@ -569,8 +577,8 @@
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Left 40% */}
             <div className="lg:w-[40%] shrink-0">
-              <div className="bg-surface border border-border rounded-xl p-6">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-accent to-success bg-clip-text text-transparent mb-1">
+              <div className="bg-surface/90 border border-pink/30 rounded-[2rem] p-6 shadow-lg backdrop-blur-sm">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-pink to-[#FFD4DC] bg-clip-text text-transparent mb-1">
                    AutoPilot Dev
                 </h1>
                 <p className="text-muted text-sm mb-6">Autonomous GitHub PR Review &amp; Bug Fix</p>
@@ -583,26 +591,26 @@
                   onKeyDown={(e) => e.key === 'Enter' && !running && startReview()}
                   placeholder="https://github.com/owner/repo/pull/123"
                   disabled={running}
-                  className="w-full mt-2 mb-4 bg-bg border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-accent disabled:opacity-50"
+                  className="w-full mt-2 mb-4 bg-bg/80 border border-pink/30 rounded-full px-5 py-2.5 text-sm focus:outline-none focus:border-pink focus:ring-2 focus:ring-pink/30 disabled:opacity-50"
                 />
 
                 <button
                   onClick={startReview}
                   disabled={running}
-                  className="w-full bg-accent hover:bg-accent/90 disabled:opacity-40 text-bg font-bold py-2.5 rounded-lg text-sm transition no-print"
+                  className="w-full bg-pink hover:bg-accenthover disabled:opacity-40 text-bg font-bold py-3 rounded-full text-sm transition shadow-md no-print"
                 >
-                  {running ? '⏳ Running…' : 'Analyse'}
+                  {running ? ' Running…' : 'Analyse'}
                 </button>
 
                 {error && (
-                  <div className="mt-3 text-danger text-sm bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
+                  <div className="mt-3 text-[#FFD4DC] text-sm bg-danger/20 border border-danger/40 rounded-2xl px-4 py-2">
                     ⚠ {error}
                   </div>
                 )}
 
                 <div className="flex items-center gap-3 mt-5">
                   <span className="text-muted text-sm">Status</span>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase border ${statusBadgeClass(status)}`}>
+                  <span className={`px-4 py-1 rounded-full text-xs font-bold uppercase border ${statusBadgeClass(status)}`}>
                     {formatStatus(status)}
                   </span>
                   {duration && <span className="text-muted text-sm ml-auto font-mono">{duration}</span>}
@@ -612,11 +620,11 @@
 
             {/* Right 60% */}
             <div className="lg:w-[60%]">
-              <div className="bg-surface border border-border rounded-xl p-6 h-full">
-                <h2 className="text-xs uppercase text-muted tracking-wide mb-4">Live Pipeline</h2>
+              <div className="bg-surface/90 border border-pink/30 rounded-[2rem] p-6 h-full shadow-lg backdrop-blur-sm">
+                <h2 className="text-xs uppercase text-pink tracking-wide mb-4">Live Pipeline</h2>
                 <PipelineDiagram nodeStates={nodeStates} retryActive={retryActive} />
 
-                <div className="mt-6 border-t border-border pt-4">
+                <div className="mt-6 border-t border-pink/20 pt-4">
                   <h3 className="text-xs uppercase text-muted tracking-wide mb-2">Recent Activity</h3>
                   {recentLog.length === 0 ? (
                     <p className="text-muted text-sm">Waiting for pipeline events…</p>
@@ -625,7 +633,7 @@
                       {recentLog.map((entry, i) => (
                         <li key={i} className="text-xs font-mono">
                           <span className="text-muted">{entry.ts}</span>
-                          <span className="text-accent ml-2">{entry.agent}</span>
+                          <span className="text-pink ml-2">{entry.agent}</span>
                           <span className="text-muted ml-2">{entry.message}</span>
                         </li>
                       ))}
