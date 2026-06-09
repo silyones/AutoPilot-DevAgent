@@ -261,7 +261,7 @@
 <footer>AutoPilot Dev · Built with FastAPI, LangGraph, CrewAI, Groq</footer>
 
 <script>
-  const API = 'http://localhost:8000';
+  const API = window.location.origin;
   let ws = null;
   let startTs = null;
   let timerInterval = null;
@@ -383,7 +383,8 @@
     addFeedItem('🚀', 'AutoPilot', 'Pipeline started — session ' + sessionId.slice(0, 8) + '…');
 
     // ── 2. Connect WebSocket ────────────────────────────────────────────
-    const wsUrl = 'ws://localhost:8000/api/ws/' + sessionId;
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = wsProtocol + '//' + window.location.host + '/api/ws/' + sessionId;
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {

@@ -135,48 +135,54 @@ AutoPilot_Dev/
 ## Setup & Run
 
 ### Prerequisites
-- **Python 3.11+**
-- **Docker Desktop** (for Postgres + Redis)
+- **Docker Desktop** (runs Postgres, Redis, and the API — no local Python/uvicorn needed)
 
-### Quick Start
+### Quick Start (Docker only)
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/your-username/AutoPilot-Dev.git
 cd AutoPilot-Dev
 
-# 2. Create and activate virtual environment
-python -m venv venv
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # macOS / Linux
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Configure environment
+# 2. Configure environment
 cp .env.example .env
-# Edit .env — fill in your GROQ_API_KEY, GITHUB_TOKEN, LANGCHAIN_API_KEY
+# Edit .env — fill in GROQ_API_KEY, GITHUB_TOKEN, LANGCHAIN_API_KEY, POSTGRES_PASSWORD
 
-# 5. Start Postgres + Redis
-docker-compose up postgres redis -d
-
-# 6. Run database migrations
-alembic upgrade head
-
-# 7. Start the API server
-uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
-
-# 8. Open the frontend
-# Open frontend/index.html in your browser — no build step needed
-```
-
-### Full Docker Stack (all services in one command)
-
-```bash
+# 3. Start everything (Postgres + Redis + API + auto-migrations)
 docker-compose up --build
 ```
 
-Postgres, Redis, and the FastAPI server start together with health-checked ordering.
+Then open **http://localhost:8000** — the UI is served by the API container.
+
+- Swagger UI: http://localhost:8000/docs
+- Health check: http://localhost:8000/health
+
+Stop the stack:
+
+```bash
+docker-compose down
+```
+
+### pgAdmin / external DB tools
+
+Connect to the **Docker** Postgres (not your local install):
+
+| Field    | Value           |
+|----------|-----------------|
+| Host     | `localhost`     |
+| Port     | `5433`          |
+| Database | `autopilot_dev` |
+| Username | `postgres`      |
+| Password | value from `.env` `POSTGRES_PASSWORD` |
+
+### Running tests locally (optional)
+
+Tests still run on your machine with Python installed:
+
+```bash
+pip install -r requirements.txt
+pytest tests/test_github_tool.py tests/test_api.py -v
+```
 
 ---
 
@@ -188,11 +194,11 @@ Postgres, Redis, and the FastAPI server start together with health-checked order
 | `GROQ_MODEL` | Model name (default: `llama-3.3-70b-versatile`) |
 | `GITHUB_TOKEN` | GitHub personal access token |
 | `LANGCHAIN_API_KEY` | LangSmith API key (for tracing) |
-| `DATABASE_URL` | PostgreSQL connection string |
-| `REDIS_URL` | Redis connection string |
-| `POSTGRES_USER` | Postgres username (used by Docker Compose) |
-| `POSTGRES_PASSWORD` | Postgres password (used by Docker Compose) |
-| `POSTGRES_DB` | Database name (used by Docker Compose) |
+| `POSTGRES_USER` | Postgres username (Docker `autopilot-postgres` container) |
+| `POSTGRES_PASSWORD` | Postgres password (Docker `autopilot-postgres` container) |
+| `POSTGRES_DB` | Database name (Docker `autopilot-postgres` container) |
+| `DATABASE_URL` | Host-side DB URL for pgAdmin (`localhost:5433`); overridden inside the API container |
+| `REDIS_URL` | Host-side Redis URL; overridden inside the API container to `redis://redis:6379` |
 
 ---
 
@@ -208,7 +214,7 @@ curl -X POST http://localhost:8000/api/review \
 # {"success": true, "session_id": "a3f1c2d4-...", "data": null, "error": null}
 
 # Then connect WebSocket at: ws://localhost:8000/api/ws/{session_id}
-# Or just open frontend/index.html
+# Or open http://localhost:8000 and paste a PR URL in the UI
 ```
 
 ### Sample DevReport Output

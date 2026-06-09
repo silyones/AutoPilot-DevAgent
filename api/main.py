@@ -1,14 +1,17 @@
 """FastAPI application entry point for AutoPilot Dev.
 
-Start with::
+Run the full stack with Docker::
 
-    uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    docker-compose up --build
 
+Then open http://localhost:8000 for the UI.
 Swagger UI: http://localhost:8000/docs
 ReDoc     : http://localhost:8000/redoc
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 # ── LangSmith tracing — must be imported before api.routes (which loads LangGraph) ──
 # backend.tracing sets LANGCHAIN_* env vars at module load time.
@@ -20,11 +23,14 @@ import backend.tracing  # noqa: F401  (side-effect import — sets env vars)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 
 from api.routes import router
 from backend.config import settings
 from backend.utils.logger import get_logger
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 logger = get_logger(__name__)
 
@@ -51,6 +57,16 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(router, prefix="/api")
+
+
+# ── Frontend (single-page UI served from the API container) ───────────────────
+@app.get("/", include_in_schema=False)
+async def serve_frontend() -> FileResponse:
+    """Serve the AutoPilot Dev UI at the root URL."""
+    index_path = FRONTEND_DIR / "index.html"
+    if not index_path.is_file():
+        raise RuntimeError(f"Frontend not found: {index_path}")
+    return FileResponse(index_path)
 
 
 # ── Health probe ──────────────────────────────────────────────────────────────
