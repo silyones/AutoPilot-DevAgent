@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoPilot Dev — Autonomous PR Review</title>
+  <meta name="description" content="AutoPilot Dev: AI-powered autonomous GitHub PR review and bug-fix system powered by LangGraph, CrewAI, and Groq." />
+  <style>
+    /* ── Reset & Base ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0d1117;
+      --surface:    #161b22;
+      --surface2:   #1f2937;
+      --border:     #30363d;
+      --accent:     #58a6ff;
+      --accent2:    #3fb950;
+      --warn:       #d29922;
+      --error:      #f85149;
+      --text:       #e6edf3;
+      --muted:      #8b949e;
+      --radius:     10px;
+      --mono:       'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px 80px;
+    }
+
+    /* ── Header ────────────────────────────────────────────────────── */
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .logo {
+      font-size: 2.4rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #58a6ff 0%, #3fb950 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .tagline {
+      color: var(--muted);
+      margin-top: 6px;
+      font-size: 0.95rem;
+    }
+
+    /* ── Card ──────────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      width: 100%;
+      max-width: 780px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* ── Input Row ─────────────────────────────────────────────────── */
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+    #prUrl {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #prUrl:focus { border-color: var(--accent); }
+    #prUrl::placeholder { color: var(--muted); }
+
+    #runBtn {
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: #0d1117;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 700;
+      padding: 10px 22px;
+      transition: opacity 0.2s, transform 0.1s;
+      white-space: nowrap;
+    }
+    #runBtn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    #runBtn:active:not(:disabled) { transform: translateY(0); }
+    #runBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Status Badge ──────────────────────────────────────────────── */
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .status-label { color: var(--muted); font-size: 0.85rem; }
+    #statusBadge {
+      display: inline-block;
+      padding: 3px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: var(--surface2);
+      transition: all 0.3s;
+    }
+    #statusBadge.in-progress  { color: var(--warn);   border-color: var(--warn);   background: rgba(210,153,34,0.12);  }
+    #statusBadge.passed       { color: var(--accent2); border-color: var(--accent2); background: rgba(63,185,80,0.12); }
+    #statusBadge.fixed        { color: var(--accent);  border-color: var(--accent);  background: rgba(88,166,255,0.12); }
+    #statusBadge.needs-review { color: var(--error);   border-color: var(--error);   background: rgba(248,81,73,0.12);  }
+
+    #duration {
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-left: auto;
+    }
+
+    /* ── Activity Feed ─────────────────────────────────────────────── */
+    #feed {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .feed-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      animation: slideIn 0.25s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .feed-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 1px; }
+    .feed-body { flex: 1; }
+    .feed-agent { font-weight: 600; font-size: 0.9rem; }
+    .feed-msg   { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+    .feed-ts    { color: var(--border); font-size: 0.75rem; margin-top: 4px; font-family: var(--mono); }
+
+    /* ── Spinner ───────────────────────────────────────────────────── */
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── JSON Report ───────────────────────────────────────────────── */
+    #reportBox {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: #a5d6ff;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      line-height: 1.6;
+      max-height: 460px;
+      overflow-y: auto;
+      padding: 18px;
+      white-space: pre;
+      tab-size: 2;
+    }
+    #reportBox::-webkit-scrollbar { width: 6px; }
+    #reportBox::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Error Toast ───────────────────────────────────────────────── */
+    #toast {
+      background: rgba(248,81,73,0.15);
+      border: 1px solid var(--error);
+      border-radius: 8px;
+      color: var(--error);
+      display: none;
+      font-size: 0.88rem;
+      margin-top: 12px;
+      padding: 10px 14px;
+    }
+
+    /* ── Footer ────────────────────────────────────────────────────── */
+    footer {
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin-top: 32px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⚡ AutoPilot Dev</div>
+  <p class="tagline">Autonomous GitHub PR Review &amp; Bug Fix · LangGraph · CrewAI · Groq</p>
+</header>
+
+<!-- ── Input Card ────────────────────────────────────────────────────── -->
+<div class="card">
+  <div class="card-title">GitHub Pull Request</div>
+  <div class="input-row">
+    <input id="prUrl" type="url"
+           placeholder="https://github.com/owner/repo/pull/123"
+           autocomplete="off" spellcheck="false" />
+    <button id="runBtn" onclick="startReview()">▶ Run AutoPilot</button>
+  </div>
+  <div id="toast"></div>
+  <div class="status-row">
+    <span class="status-label">Status</span>
+    <span id="statusBadge">IDLE</span>
+    <span id="duration"></span>
+  </div>
+</div>
+
+<!-- ── Live Feed Card ────────────────────────────────────────────────── -->
+<div class="card" id="feedCard" style="display:none">
+  <div class="card-title">
+    <span id="feedSpinner" class="spinner"></span>Live Agent Activity
+  </div>
+  <ul id="feed"></ul>
+</div>
+
+<!-- ── Report Card ───────────────────────────────────────────────────── -->
+<div class="card" id="reportCard" style="display:none">
+  <div class="card-title">DevReport — Full Output</div>
+  <pre id="reportBox"></pre>
+</div>
+
+<footer>AutoPilot Dev · Built with FastAPI, LangGraph, CrewAI, Groq</footer>
+
+<script>
+  const API = 'http://localhost:8000';
+  let ws = null;
+  let startTs = null;
+  let timerInterval = null;
+
+  // ── Agent icon map ──────────────────────────────────────────────────
+  const ICONS = {
+    'GitHub Fetcher':  '📡',
+    'Reviewer Agent':  '🔍',
+    'Fixer Agent':     '🔧',
+    'Tester Agent':    '🧪',
+    'Documenter Agent':'📝',
+    'default':         '🤖',
+  };
+
+  function agentIcon(agent) {
+    for (const [k, v] of Object.entries(ICONS)) {
+      if (agent && agent.includes(k.split(' ')[0])) return v;
+    }
+    return ICONS.default;
+  }
+
+  // ── Status badge ────────────────────────────────────────────────────
+  function setStatus(text, cls) {
+    const badge = document.getElementById('statusBadge');
+    badge.textContent = text;
+    badge.className = cls || '';
+  }
+
+  // ── Error toast ─────────────────────────────────────────────────────
+  function showError(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = '⚠ ' + msg;
+    t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 8000);
+  }
+
+  // ── Duration ticker ─────────────────────────────────────────────────
+  function startTimer() {
+    startTs = Date.now();
+    timerInterval = setInterval(() => {
+      const s = ((Date.now() - startTs) / 1000).toFixed(1);
+      document.getElementById('duration').textContent = s + 's';
+    }, 100);
+  }
+  function stopTimer() {
+    clearInterval(timerInterval);
+  }
+
+  // ── Feed item ───────────────────────────────────────────────────────
+  function addFeedItem(icon, agent, message, timestamp) {
+    const li = document.createElement('li');
+    li.className = 'feed-item';
+    const ts = timestamp ? new Date(timestamp).toLocaleTimeString() : '';
+    li.innerHTML =
+      '<span class="feed-icon">' + icon + '</span>' +
+      '<div class="feed-body">' +
+        '<div class="feed-agent">' + (agent || 'System') + '</div>' +
+        '<div class="feed-msg">' + message + '</div>' +
+        (ts ? '<div class="feed-ts">' + ts + '</div>' : '') +
+      '</div>';
+    document.getElementById('feed').appendChild(li);
+    li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // ── Reset UI ────────────────────────────────────────────────────────
+  function reset() {
+    document.getElementById('feed').innerHTML = '';
+    document.getElementById('feedCard').style.display = 'none';
+    document.getElementById('reportCard').style.display = 'none';
+    document.getElementById('reportBox').textContent = '';
+    document.getElementById('feedSpinner').style.display = 'inline-block';
+    document.getElementById('duration').textContent = '';
+    document.getElementById('toast').style.display = 'none';
+    if (ws) { ws.close(); ws = null; }
+    stopTimer();
+  }
+
+  // ── Map status string → badge CSS class ─────────────────────────────
+  function statusClass(s) {
+    const m = { PASSED: 'passed', FIXED: 'fixed', NEEDS_HUMAN_REVIEW: 'needs-review', IN_PROGRESS: 'in-progress' };
+    return m[s] || '';
+  }
+
+  // ── Main entry point ────────────────────────────────────────────────
+  async function startReview() {
+    const url = document.getElementById('prUrl').value.trim();
+    if (!url) { showError('Please enter a GitHub PR URL.'); return; }
+    if (!url.includes('github.com') || !url.includes('/pull/')) {
+      showError('URL must be a GitHub PR link: https://github.com/owner/repo/pull/123');
+      return;
+    }
+
+    reset();
+    document.getElementById('runBtn').disabled = true;
+    setStatus('IN PROGRESS', 'in-progress');
+    document.getElementById('feedCard').style.display = 'block';
+    startTimer();
+
+    // ── 1. POST /api/review ────────────────────────────────────────────
+    let sessionId;
+    try {
+      const resp = await fetch(API + '/api/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pr_url: url }),
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      if (!data.success) throw new Error(data.error || 'Unknown error from server');
+      sessionId = data.session_id;
+    } catch (e) {
+      showError('Failed to start review: ' + e.message);
+      setStatus('ERROR', '');
+      stopTimer();
+      document.getElementById('runBtn').disabled = false;
+      return;
+    }
+
+    addFeedItem('🚀', 'AutoPilot', 'Pipeline started — session ' + sessionId.slice(0, 8) + '…');
+
+    // ── 2. Connect WebSocket ────────────────────────────────────────────
+    const wsUrl = 'ws://localhost:8000/api/ws/' + sessionId;
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      addFeedItem('🔗', 'WebSocket', 'Connected — waiting for agent updates…');
+    };
+
+    ws.onmessage = (event) => {
+      let msg;
+      try { msg = JSON.parse(event.data); } catch { return; }
+
+      if (msg.type === 'start') {
+        addFeedItem('▶', 'System', msg.message || 'Pipeline running…');
+
+      } else if (msg.type === 'progress') {
+        const icon = agentIcon(msg.agent);
+        addFeedItem(icon, msg.agent, msg.message || msg.action, msg.timestamp);
+
+      } else if (msg.type === 'complete') {
+        document.getElementById('feedSpinner').style.display = 'none';
+        stopTimer();
+        const report = msg.report || {};
+        const st = report.status || 'PASSED';
+        setStatus(st, statusClass(st));
+        const secs = (report.total_duration_seconds || 0).toFixed(2);
+        document.getElementById('duration').textContent = secs + 's';
+        addFeedItem('✅', 'AutoPilot', 'Pipeline complete · Status: ' + st);
+
+        // Render full JSON report
+        document.getElementById('reportCard').style.display = 'block';
+        document.getElementById('reportBox').textContent = JSON.stringify(report, null, 2);
+        document.getElementById('runBtn').disabled = false;
+        ws.close();
+
+      } else if (msg.type === 'error') {
+        document.getElementById('feedSpinner').style.display = 'none';
+        stopTimer();
+        setStatus('ERROR', '');
+        showError(msg.message || 'Pipeline error');
+        addFeedItem('❌', 'Error', msg.message || 'Pipeline failed');
+        document.getElementById('runBtn').disabled = false;
+        ws.close();
+      }
+    };
+
+    ws.onerror = () => {
+      addFeedItem('⚠', 'WebSocket', 'Connection error — results will still appear when the pipeline completes.');
+    };
+
+    ws.onclose = () => {
+      if (document.getElementById('runBtn').disabled) {
+        // Still running — pipeline might send result via REST fallback
+      }
+    };
+  }
+
+  // Allow Enter key to trigger review
+  document.getElementById('prUrl').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') startReview();
+  });
+</script>
+
+</body>
+</html>

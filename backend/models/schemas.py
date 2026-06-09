@@ -122,7 +122,7 @@ class DevReport(BaseModel):
 class ReviewRequest(BaseModel):
     """Incoming request payload to trigger a PR review."""
 
-    pr_url: str
+    pr_url: str = Field(min_length=1)
 
 
 class ReviewResponse(BaseModel):
